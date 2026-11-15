@@ -39,3 +39,26 @@ carrier.
 | Consumer smoke | default carrier: list + real projection replay on seeded transcript — `semantics: "persisted-effective-conversation"` per S0 agreement §3; close idempotent; real HOME untouched |
 | Host integration | `engine` option now optional (default carrier); explicit injection seam kept for tests; `replaySession` delegate added; lifecycle race fix (close-wins) retained; full suite 8 pass / 0 fail |
 | Package-manager discipline | npm-only lockfile (bun.lock removed); bun = test runner only |
+
+## Security review findings gating real-data G2 (registered 2026-11-16)
+
+Automated commit security review flagged three upstream-carrier issues in
+`createDefaultReadonlySessionRuntime` (0.1.117). All are upstream-runtime
+internals — AtlasWeb cannot fix them consumer-side and will not hand-patch.
+Until upstream ships corrected releases, the default carrier is exercised
+**only against trusted seeded fixtures**, never untrusted transcripts:
+
+1. [HIGH] Cyclic transcript metadata → DoS in engine traversal
+   (no visited-UUID bound / corruptData rejection).
+2. [HIGH] TOCTOU / authorized-storage escape (CWE-367): replay path
+   re-opens pathname after validation; needs descriptor-based read chain.
+3. [MEDIUM] Transcript parsing resource-limit bypass: record byte/count
+   limits not enforced pre-parse on the full-file loader path.
+
+**These three are G2 blockers for real-data four-face verification.**
+Registered upstream (atlas-mainline-f4 / Main) for a follow-up ticket;
+suggested direction per review: adapter-fed bounded reader, descriptor-based
+reads, cyclic-metadata rejection with `corruptData`, worker termination
+guarantees for synchronous engine work. Consumer-side regression legs will
+be added when corrected releases land (oversized-record → `resourceLimit`,
+cyclic chain → `corruptData`, ABA replacement window closed).
