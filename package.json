@@ -1,0 +1,19 @@
+{
+  "name": "atlasweb",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AtlasWeb — unified Web platform for Atlas series products (AtlasCode / AtlasOffice / AtlasComic).",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "test": "bun test",
+    "build": "echo 'per-package builds; see apps/atlasweb'"
+  }
+}
