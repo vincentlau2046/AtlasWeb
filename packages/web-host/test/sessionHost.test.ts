@@ -102,4 +102,54 @@ describe('createSessionHost (G1 skeleton)', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  test('close during pending startup wins the race; runtime stays terminal', async () => {
+    const { createSessionHost } = await import('../src/sessionHost')
+    const { mkdtempSync, rmSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const dir = mkdtempSync(join(tmpdir(), 'atlasweb-host3-'))
+    try {
+      // 慢启动 runtime：让 close() 有机会落在 start() await 窗口内
+      const slowRuntime = {
+        epoch: 'slow',
+        limits: { pageSize: 1 },
+        startStarted: 0,
+        start() {
+          this.startStarted++
+          return new Promise<void>(resolve => setTimeout(resolve, 30))
+        },
+        listSessions: async () => {
+          throw new Error('runtime must not serve after close')
+        },
+        close: async () => {},
+      }
+      const host = createSessionHost({
+        productId: 'atlascode',
+        scopes: [{ scopeId: 'demo', storageDir: dir }],
+        engine: fakeEngine,
+        runtimeOverride: slowRuntime as never,
+      })
+      const startPromise = host.start()
+      await host.close() // 竞态：启动中关闭
+      await startPromise.catch(() => {}) // 启动可能以 closed 拒绝，不崩即可
+      let startThrew = false
+      try {
+        await host.start() // 关闭后重启必须被拒
+      } catch {
+        startThrew = true
+      }
+      expect(startThrew).toBe(true)
+      let listThrew = false
+      try {
+        await host.listSessions({ scopeId: 'demo' })
+      } catch {
+        listThrew = true
+      }
+      expect(listThrew).toBe(true)
+      expect(slowRuntime.startStarted).toBeLessThanOrEqual(1) // 关闭后不得二次 start
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })

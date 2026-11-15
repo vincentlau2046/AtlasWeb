@@ -29,6 +29,8 @@ export interface SessionHostOptions {
   scopes: ReadonlySessionScopes
   engine: ReadonlySessionEngine
   limits?: ReadonlySessionLimits
+  /** 测试注入缝：覆盖底层 runtime（生产路径恒用上游 published factory）。 */
+  runtimeOverride?: ReadonlySessionRuntime
 }
 
 export interface SessionHost {
@@ -68,31 +70,60 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
     throw new Error('engine must be injected; AtlasWeb never hand-copies engine internals')
   }
 
-  const runtime: ReadonlySessionRuntime = createReadonlySessionRuntime({
+  const runtime: ReadonlySessionRuntime = options.runtimeOverride ?? createReadonlySessionRuntime({
     productId: options.productId,
     scopes,
     engine: options.engine,
     limits: options.limits,
   })
 
-  let state: 'created' | 'started' | 'closed' = 'created'
+  // 生命周期状态机（fail-closed，无双态竞态）：
+  // - closed 是同步终态：一旦置位，任何 start 完成回调不得翻回 started；
+  // - start 序列化：并发 start 共享同一个底层 start() promise；
+  // - close 在启动在途时等待该 promise，再关底层 runtime（关终胜出）。
+  let closed = false
+  let started = false
+  let pendingStart: Promise<void> | null = null
+
+  const doStart = (): Promise<void> => {
+    if (closed) return Promise.reject(new Error('closed'))
+    if (started) return Promise.resolve()
+    if (!pendingStart) {
+      pendingStart = (async () => {
+        await runtime.start()
+        if (closed) {
+          // 启动完成前已被 close：终态不被启动回调翻回 started；
+          // 底层由 close 的等待路径负责关闭。
+          return
+        }
+        started = true
+      })().finally(() => {
+        // 挂起标记随结算清空：失败且未 closed 时允许重试。
+        pendingStart = null
+      })
+    }
+    return pendingStart
+  }
+
   return {
     epoch: runtime.epoch,
     limits: runtime.limits,
     async start(): Promise<void> {
-      if (state === 'closed') throw new Error('closed')
-      if (state === 'started') return
-      await runtime.start()
-      state = 'started'
+      await doStart()
     },
     async listSessions(request, signal) {
-      if (state === 'closed') throw new Error('closed')
-      if (state !== 'started') throw new Error('not started')
+      if (closed) throw new Error('closed')
+      if (!started) throw new Error('not started')
       return runtime.listSessions(request, signal)
     },
     async close(): Promise<void> {
-      if (state === 'closed') return
-      state = 'closed'
+      if (closed) return
+      closed = true // 同步终态占位：随后到达的 start 一律拒 closed
+      if (pendingStart) {
+        await pendingStart.catch(() => {})
+        pendingStart = null
+      }
+      started = false
       await runtime.close()
     },
   }
