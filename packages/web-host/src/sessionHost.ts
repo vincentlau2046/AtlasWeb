@@ -9,14 +9,16 @@
  *   there is NO default HOME fallback and no product-directory probing;
  * - lifecycle delegates to the runtime (start / close-idempotent /
  *   post-close reject); the host never restarts a closed runtime epoch;
- * - the engine injection seam is a constructor argument — the real engine
- *   carrier is an upstream deliverable (S0-R2 ticket); AtlasWeb never
- *   hand-copies engine internals.
+ * - engine is optional: absent → upstream default carrier
+ *   (`createDefaultReadonlySessionRuntime`, S0-R2 form A, 0.1.117+);
+ *   explicit injection stays available for tests/replacement — AtlasWeb
+ *   never hand-copies engine internals.
  *
  * Zero side effects at import: no fs reads beyond what Node module loading
  * itself requires, no env reads, no timers, no sockets.
  */
 import {
+  createDefaultReadonlySessionRuntime,
   createReadonlySessionRuntime,
   type ReadonlySessionEngine,
   type ReadonlySessionLimits,
@@ -27,7 +29,8 @@ import {
 export interface SessionHostOptions {
   productId: string
   scopes: ReadonlySessionScopes
-  engine: ReadonlySessionEngine
+  /** 可选：显式 engine 注入（上游注入缝）。缺省 = 上游默认载体（0.1.117+）。 */
+  engine?: ReadonlySessionEngine
   limits?: ReadonlySessionLimits
   /** 测试注入缝：覆盖底层 runtime（生产路径恒用上游 published factory）。 */
   runtimeOverride?: ReadonlySessionRuntime
@@ -38,6 +41,7 @@ export interface SessionHost {
   readonly limits: ReadonlySessionRuntime['limits']
   start(): Promise<void>
   listSessions(request: { scopeId: string }, signal?: AbortSignal): ReturnType<ReadonlySessionRuntime['listSessions']>
+  replaySession(request: { scopeId: string; sessionId: string }, signal?: AbortSignal): ReturnType<ReadonlySessionRuntime['replaySession']>
   close(): Promise<void>
 }
 
@@ -66,16 +70,24 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
     throw new Error('productId is required')
   }
   const scopes = validateScopes(options.scopes)
-  if (!options.engine || typeof options.engine.loadTranscriptFull !== 'function') {
-    throw new Error('engine must be injected; AtlasWeb never hand-copies engine internals')
+  if (options.engine && typeof options.engine.loadTranscriptFull !== 'function') {
+    throw new Error('injected engine must expose loadTranscriptFull')
   }
 
-  const runtime: ReadonlySessionRuntime = options.runtimeOverride ?? createReadonlySessionRuntime({
-    productId: options.productId,
-    scopes,
-    engine: options.engine,
-    limits: options.limits,
-  })
+  // 0.1.117+：engine 真体随上游 bundle（S0-R2 形 A）——缺省走默认载体；
+  // 显式注入缝保留给测试/替换。AtlasWeb 永不手抄 engine 内部。
+  const runtime: ReadonlySessionRuntime = options.runtimeOverride ?? (options.engine
+    ? createReadonlySessionRuntime({
+        productId: options.productId,
+        scopes,
+        engine: options.engine,
+        limits: options.limits,
+      })
+    : createDefaultReadonlySessionRuntime({
+        productId: options.productId,
+        scopes,
+        limits: options.limits,
+      }))
 
   // 生命周期状态机（fail-closed，无双态竞态）：
   // - closed 是同步终态：一旦置位，任何 start 完成回调不得翻回 started；
@@ -115,6 +127,11 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       if (closed) throw new Error('closed')
       if (!started) throw new Error('not started')
       return runtime.listSessions(request, signal)
+    },
+    async replaySession(request, signal) {
+      if (closed) throw new Error('closed')
+      if (!started) throw new Error('not started')
+      return runtime.replaySession(request, signal)
     },
     async close(): Promise<void> {
       if (closed) return

@@ -82,6 +82,37 @@ describe('createSessionHost (G1 skeleton)', () => {
     }
   })
 
+  test('default engine carrier (0.1.117+): list + real projection replay on seeded data', async () => {
+    const { createSessionHost } = await import('../src/sessionHost')
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const dir = mkdtempSync(join(tmpdir(), 'atlasweb-host4-'))
+    try {
+      writeFileSync(join(dir, 'seed-1.jsonl'), [
+        JSON.stringify({ type: 'user', uuid: 'u1', parentUuid: null, timestamp: '2026-11-16T08:00:00.000Z', message: { role: 'user', content: 'hi' } }),
+        JSON.stringify({ type: 'assistant', uuid: 'a1', parentUuid: 'u1', timestamp: '2026-11-16T08:00:01.000Z', message: { role: 'assistant', content: [{ type: 'text', text: 'hello' }] } }),
+      ].join('\n') + '\n')
+      const host = createSessionHost({
+        productId: 'atlascode',
+        scopes: [{ scopeId: 'seed', storageDir: dir }],
+        // 无 engine：走上游默认载体（S0-R2 形 A）
+      })
+      await host.start()
+      try {
+        const list = await host.listSessions({ scopeId: 'seed' })
+        expect(list.sessions).toHaveLength(1)
+        expect(list.sessions[0]!.sessionId).toBe('seed-1')
+        const replay = await host.replaySession({ scopeId: 'seed', sessionId: 'seed-1' })
+        expect(replay.projection.semantics).toBe('persisted-effective-conversation')
+      } finally {
+        await host.close()
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   test('exposes resolved limits and epoch from runtime for pairing evidence', async () => {
     const { createSessionHost } = await import('../src/sessionHost')
     const { mkdtempSync, rmSync } = await import('node:fs')
