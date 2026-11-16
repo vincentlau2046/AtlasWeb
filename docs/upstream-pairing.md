@@ -51,6 +51,16 @@ carrier.
 | Consumer legs | `packages/web-host/test/s0r3-regression.test.ts`: ① oversized → `resourceLimit` sanitized; ② cyclic chain → bounded gap-null (chain roots at survivor; zero hang); ③ ABA window → `ioUnavailable` retryable (handoff double-sampling). Full suite 17 pass / 0 fail |
 | Mitigation truth form | 「fd 链（函数内四点）+ 交接窗双采样守卫（叠加纵深）」 per f4 §7-3 终裁 |
 
+## Pairing 3 addendum — G2 consumer legs on 0.1.118 (2026-11-16)
+
+| Item | State |
+|---|---|
+| 格 F dual-instance isolation | GREEN @`b1368eb` — same-process two runtimes, distinct scope domains / same sessionId interleaved list+replay zero cross-domain (incl. reverse `scopeDenied` legs), A increment not in B, close-A spares-B, epochs distinct, close idempotent, zero global env/chdir |
+| 格 D+H follow face | GREEN @`659011f` — `SessionHost.followSession` delegate + HTTP SSE bridge (`GET /sessions/:id/follow`): WebSessionEvent v0 frames, `closed` unique terminal, append → replacement convergence verified, client disconnect frees subscription slot |
+| follow missing-session ruling | in-stream `error{notFound}` → `closed` pair per upstream contract (404 pre-stream mapping stays request/response-faces only; pre-stream check would need extra scope scan + TOCTOU window) |
+| 格 D search face | **UPSTREAM GAP registered** (signal to atlas-mainline-f4 2026-11-16): `ReadonlySessionRuntime` exposes list/replay/follow only; contract schema `SearchSessionsRequestSchema` exists but no runtime implementation. AtlasWeb does not hand-copy projection-search semantics (`renderableSearchText` engine domain) and will not ship a title-filter stand-in. Blocked pending upstream wave; then anchor upgrade + 格 D search legs |
+| Suite | 19 pass / 0 fail (7 files) |
+
 ## Security review findings gating real-data G2 — CLOSED (2026-11-16)
 
 All three findings closed by upstream 0.1.118 (Pairing 3); consumer legs
