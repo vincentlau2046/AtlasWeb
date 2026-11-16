@@ -91,6 +91,31 @@ describe('E2E-06 rewrite(shrink) → resetRequired → re-baseline → convergen
     res.destroy()
   }, 30000)
 
+  test('E2E-06b cursor 重入（?cursor= 透传 @71c2208）：当前可观测形 = 任意 cursor → fresh baseline【上游缺口注记】', async () => {
+    // 上游缺口（探针定谳 + F4 互证）：FollowSessionRequest.resumeCursor 契约面在，
+    // runtime 零消费——任意 cursor 一律 fresh baseline（ledger 发放 cursor 字段，
+    // 仅重入消费缺席）。已登记 atlas-mainline-f4 候 S0-R5。
+    // 本腿钉当前可观测行为；上游 resume 语义落地后改钉 resetRequired/cursorExpired。
+    const res1 = await openFollow(host.port, { cookie })
+    const reader1 = sseReader(res1)
+    const baseline1 = await reader1.next()
+    expect(baseline1?.kind).toBe('baseline')
+    const cursor = String(baseline1!.cursor)
+    res1.destroy()
+
+    const res3 = await new Promise<import('node:http').IncomingMessage>((resolve, reject) => {
+      const req = request({ host: HOST, port: host.port, path: `/sessions/sess-1/follow?scopeId=main&cursor=${encodeURIComponent(cursor)}`, headers: { cookie } }, r => resolve(r))
+      req.on('error', reject)
+      req.end()
+    })
+    expect(res3.statusCode).toBe(200)
+    const reader3 = sseReader(res3)
+    const reentry = await reader3.next()
+    // 缺口形：fresh baseline（非 resetRequired、非 cursorExpired、非 error）
+    expect(reentry?.kind).toBe('baseline')
+    res3.destroy()
+  }, 30000)
+
   test('teardown', async () => {
     const code = await host.stop()
     expect(code).toBe(0)

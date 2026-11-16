@@ -123,6 +123,30 @@ describe('E2E-04 follow SSE convergence over real process', () => {
     expect(res.status).toBe(401)
   })
 
+  test('SIGTERM with open follow stream → bounded graceful exit 0（F4 @71c2208 挂死修复回归腿）', async () => {
+    // 原缺陷形：server.close() 永等 SSE 连接 → SIGTERM 挂死（SIGKILL 才能终止，
+    // 探针 2026-11-16 定谳）。修复形：shutdown 先 sessionHost.close() 终止
+    // 活跃订阅 → 泵终流 + closeAllConnections 兜底。
+    const dir2 = makeSeedDir('atlasweb-e2e04b-', { 'sess-1': seedTwoLines() })
+    try {
+      const host2 = await launchHost({ scopes: [{ id: 'main', dir: dir2 }] })
+      const cookie2 = cookieHeaderValue(await redeemForCookie(host2.port, host2.token))
+      const res = await openFollow(host2.port, '/sessions/sess-1/follow?scopeId=main', { cookie: cookie2 })
+      expect(res.statusCode).toBe(200)
+      const reader = sseReader(res)
+      expect((await reader.next())?.kind).toBe('baseline')
+      // 流保持打开时 SIGTERM：必须 3s 内优雅退出 0（挂死形 = stop() 走
+      // SIGKILL 兜底 → code null）
+      const t0 = Date.now()
+      const code = await host2.stop()
+      expect(code).toBe(0)
+      expect(Date.now() - t0).toBeLessThan(3000)
+      void reader
+    } finally {
+      rmDir(dir2)
+    }
+  }, 30000)
+
   test('teardown', async () => {
     const code = await host.stop()
     expect(code).toBe(0)
