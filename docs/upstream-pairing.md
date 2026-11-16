@@ -74,6 +74,21 @@ carrier.
 | Gate truth table | `face-search` 翻绿；G2 余 `pairing-rollback-live`（格 I，待授权）单缺口 |
 | Chain | 登记档 @bcd47495 → 全工单 f0c4d19a → 审计 §6 @51c05fbd → lock-face §10 @7ecf0fa4 → 段 I d00cc534 → GATE-PASS @944fc3e5 → §11 采认 97f52c6f → release 442f8eae → 生产 lane PASS（r-20261116-prodlane-119） |
 
+## Upstream registration — S0-R5 follow-recovery pair (2026-11-16)
+
+e2e P1 probe findings ②③ registered upstream; f4 confirmed both @`2ef06607`
+(mechanism fully adopted), queued as **S0-R5 = 0.1.121 候** (after 0.1.120,
+single lock-face):
+
+| # | Gap | Upstream verdict | Candidate shape |
+|---|---|---|---|
+| ② | rewrite-larger → `corruptData` hard terminal (should be `resetRequired`) | `follow.ts:420` guard `ino!==anchor \|\| size<offset` misses same-inode size>offset face | discontinuity-detection widening (3-way 呈批) + subscription-window shape folded in + corruptData narrowed to true corruption |
+| ③ | `resumeCursor` contract-present/implementation-absent | sole presence = contract schema :87, zero wiring | `cursorExpired` 分态兑现 + ledger 对表 |
+
+Gate includes consumer probe-matrix 5-leg rerun (smaller/larger/in-window/
+cursor-expired/cursor-valid). Consumer `?cursor=` passthrough seam @`71c2208`
+becomes live on upstream landing.
+
 ## Security review findings gating real-data G2 — CLOSED (2026-11-16)
 
 All three findings closed by upstream 0.1.118 (Pairing 3); consumer legs
