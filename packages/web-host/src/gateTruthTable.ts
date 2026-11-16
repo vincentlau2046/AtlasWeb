@@ -133,8 +133,8 @@ export function evaluateGates(now: Date = new Date()): GateTable {
       id: 'pairing-rollback-live',
       gate: 'G2',
       criterion: '格 I：配对/回滚实测（真实 npm 降级/升级链安装动作）',
-      state: 'gap',
-      evidence: '涉真实安装链，待用户授权（pending owner authorization）',
+      state: has('docs/gezi-i-pairing-rollback.md') && readRepo('docs/gezi-i-pairing-rollback.md').includes('VERDICT: CLOSED') ? 'satisfied' : 'gap',
+      evidence: '四腿实测收口（docs/gezi-i-pairing-rollback.md，2026-11-16 用户授权）：clean clone→降级 0.1.118（锚 133f279a 恒等）→回升 0.1.119（锚 f4b1e4d0 恒等+全量 90/0）→配对档 append-only 完整',
     },
     {
       id: 'clean-candidate',

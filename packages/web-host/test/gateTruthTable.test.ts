@@ -22,13 +22,11 @@ describe('格 J: G1/G2 gate truth table (machine-evaluated)', () => {
     expect(table.g1.rows.every(r => r.state === 'satisfied')).toBe(true)
   })
 
-  test('G2 = NOT admitted while hard-gate rows are open; gaps named explicitly', () => {
-    expect(table.g2.admitted).toBe(false)
+  test('G2 = admitted: all hard-gate rows satisfied (格I closed @ pair-rollback report)', () => {
+    expect(table.g2.admitted).toBe(true)
     const gapIds = table.g2.rows.filter(r => r.state === 'gap').map(r => r.id)
-    // 当前实况缺口：格 I 配对/回滚实测（search 面已随上游 S0-R4 @0.1.119 落地翻绿）
-    expect(gapIds).toContain('pairing-rollback-live')
-    expect(gapIds).not.toContain('face-search')
-    // 已满足格必须为满足（机器实测事实，非声明）
+    expect(gapIds).toEqual([]) // 格 I 已实测收口（docs/gezi-i-pairing-rollback.md）
+    // 全格满足（机器实测事实，非声明）
     const byId = Object.fromEntries(table.g2.rows.map(r => [r.id, r]))
     expect(byId['face-list-replay']!.state).toBe('satisfied')
     expect(byId['face-search']!.state).toBe('satisfied')
@@ -36,11 +34,8 @@ describe('格 J: G1/G2 gate truth table (machine-evaluated)', () => {
     expect(byId['lifecycle-isolation']!.state).toBe('satisfied')
     expect(byId['auth-fence']!.state).toBe('satisfied')
     expect(byId['recovery-race-legs']!.state).toBe('satisfied')
+    expect(byId['pairing-rollback-live']!.state).toBe('satisfied')
     expect(byId['truth-table-self']!.state).toBe('satisfied')
-    // 缺口行必须带处置指向（上游波号/授权态），不得静默
-    for (const gap of table.g2.rows.filter(r => r.state === 'gap')) {
-      expect(gap.evidence).toMatch(/S0-R4|待授权|pending/)
-    }
   })
 
   test('truth table is machine-verifiable against workspace facts (pin = 0.1.119)', () => {
