@@ -23,6 +23,8 @@ export const SESSION_COOKIE = 'atlas_session'
 export interface HttpHostOptions {
   sessionHost: SessionHost
   auth: LaunchAuth
+  /** follow 流单次背压暂停超限（ms）→ fail-closed 强断（默认 30000；测试注入用）。 */
+  followSlowConsumerMs?: number
 }
 
 function readCookie(req: IncomingMessage): string | undefined {
@@ -127,17 +129,22 @@ export function createHttpHost(options: HttpHostOptions): Server {
             connection: 'keep-alive',
           })
           try {
-            await pumpFollowEvents(sub, res, undefined, () => clientGone)
+            await pumpFollowEvents(sub, res, { slowConsumerMs: options.followSlowConsumerMs }, () => clientGone)
           } catch (error) {
-            // 订阅侧异常 / 慢消费者超限（SlowConsumerError → fail-closed 终流 +
-            // 订阅释放，槽位归零；消费者按 SSE 重连语义处理）。
-            void error
+            if (error instanceof SlowConsumerError) {
+              // 慢消费者超限 → 强断：destroy 丢弃待发缓冲并立即 RST/FIN
+              //（优雅 end 会先冲缓冲——零窗口客户端下连接无限挂住）。
+              res.destroy()
+              return
+            }
+            // 其余订阅侧异常：尽力优雅终流；消费者按 SSE 重连语义处理。
           } finally {
+            // 注：finally 兜底 res.end() 仅在流未销毁时执行（destroy 路径零冲击）
             req.off('close', onClientClose)
             ac.abort()
             // 客户端断开/流终 → 订阅释放（槽位归零，close 幂等）
             await sub.close().catch(() => {})
-            if (!clientGone && !res.writableEnded) res.end()
+            if (!clientGone && !res.writableEnded && !res.destroyed) res.end()
           }
           return
         }

@@ -163,11 +163,71 @@ describe('follow stream backpressure + slot release', () => {
     }
   })
 
-  test('腿b slow consumer backpressure: covered at pump unit level', async () => {
-    // bun fetch 客户端急切缓冲 body——socket 级背压在测试进程内不可造，
-    // drain/writableLength 兼容面不可信（探针 2026-11-16 定谳；生产 Node
-    // 语义正确）。背压/慢消费者 fail-closed 判据下沉 followPump 单测
-    //（假 res 注入）：followPump.test.ts 腿 b1/b2/b3。
-    expect(true).toBe(true)
+  test('腿b non-reading client is force-disconnected after slowConsumerMs deadline', async () => {
+    // 传输级慢消费者判据（安全审查② follow-up）：裸 TCP 客户端连接后永不读
+    // → 真背压（write=false、drain 恒不至）→ slowConsumerMs 超限 → 服务端
+    // 必须 destroy 强断（优雅 end 会先冲缓冲，零窗口下连接无限挂住）。
+    // 裸 socket 绕开 bun fetch 急切缓冲（探针 2026-11-16），可造真零窗口。
+    const { createHttpHost } = await import('../src/httpHost')
+    const { createSessionHost } = await import('../src/sessionHost')
+    const { createLaunchAuth } = await import('../src/auth')
+    const { createServer: createTcp } = await import('node:net')
+    const PORT3 = 8925
+    const BIG = 'x'.repeat(512 * 1024)
+    const fakeRuntime = {
+      epoch: 'fake-epoch',
+      limits: { maxSubscriptions: 8 },
+      start: async () => {},
+      close: async () => {},
+      listSessions: async () => ({ sessions: [] }),
+      replaySession: async () => { throw new Error('not used') },
+      followSession: async () => {
+        let i = 0
+        return {
+          [Symbol.asyncIterator]() {
+            return {
+              next: async () => {
+                i++
+                return { done: false as const, value: { kind: i === 1 ? 'baseline' : 'replacement', projection: { semantics: 'persisted-effective-conversation', messages: [{ id: `m${i}`, text: BIG }] }, schemaVersion: 0, productId: 'atlascode', scopeId: 'main', sessionId: 's', subscriptionId: 'sub1' } }
+              },
+            }
+          },
+          renewLease: async () => true,
+          close: async () => {},
+        }
+      },
+    }
+    const sessionHost = createSessionHost({
+      productId: 'atlascode',
+      scopes: [{ scopeId: 'main', storageDir: '/tmp' }],
+      runtimeOverride: fakeRuntime as never,
+    })
+    const auth = createLaunchAuth({ secret: 'slow-consumer-secret-32-bytes!!!!!!!' })
+    const server = createHttpHost({ sessionHost, auth, followSlowConsumerMs: 300 })
+    await new Promise<void>(resolve => server.listen(PORT3, HOST, resolve))
+    await sessionHost.start()
+    try {
+      const cookie = auth.redeemLaunchToken(auth.issueLaunchToken())!
+      // 检测形（TCP 语义，探针 2026-11-16 双运行时定谳）：客户端保持零读
+      //（真零窗口）——RST 对零读对端事件级不可观测（close/end/error 均不
+      // 显形）；可移植判别面 = 服务端连接数：destroy → 归零；优雅 end 零
+      // 窗口下永远完不成 flush → 连接恒挂（资源占用 = RED 形）。
+      const sock = createTcp({ host: HOST, port: PORT3 }, () => {
+        sock.write(`GET /sessions/s/follow?scopeId=main HTTP/1.1\r\nhost: ${HOST}:${PORT3}\r\ncookie: atlas_session=${cookie}\r\n\r\n`)
+      })
+      sock.on('error', () => {})
+      const disconnected = await (async (): Promise<boolean> => {
+        for (let t = 0; t <= 4000; t += 250) {
+          const conns = await new Promise<number>(resolve => server.getConnections((_, c) => resolve(c)))
+          if (conns === 0) return true
+          await new Promise(r => setTimeout(r, 250))
+        }
+        return false
+      })()
+      expect(disconnected).toBe(true) // 超限后服务端连接归零（强断，非优雅挂住）
+    } finally {
+      await new Promise<void>(resolve => server.close(() => resolve()))
+      await sessionHost.close()
+    }
   })
 })
