@@ -37,7 +37,7 @@ describe('E2E-09 search face boundaries', () => {
     expect(e256.status).toBe(200)
     const zero = await httpRequest(host.port, '/sessions/search?scopeId=main&q=', { headers: { cookie } })
     expect(zero.status).toBe(400)
-    expect((JSON.parse(zero.body) as { code?: string }).code).toBe('invalidRequest')
+    expect((JSON.parse(zero.body) as { error?: { code?: string } }).error?.code).toBe('invalidRequest')
     const e257 = await httpRequest(host.port, `/sessions/search?scopeId=main&q=${encodeURIComponent('字'.repeat(257))}`, { headers: { cookie } })
     expect(e257.status).toBe(400)
     // 码点计数（emoji = 1 码点 / 2 UTF-16 单元）：256 emoji = 256 码点 → 200
@@ -78,7 +78,7 @@ describe('E2E-09 search face boundaries', () => {
   test('unmapped scope → 403 scopeDenied (not empty-list masking)', async () => {
     const denied = await httpRequest(host.port, '/sessions/search?scopeId=other&q=x', { headers: { cookie } })
     expect(denied.status).toBe(403)
-    expect((JSON.parse(denied.body) as { code?: string }).code).toBe('scopeDenied')
+    expect((JSON.parse(denied.body) as { error?: { code?: string } }).error?.code).toBe('scopeDenied')
   })
 
   test('teardown', async () => {

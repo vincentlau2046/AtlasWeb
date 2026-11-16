@@ -3,7 +3,7 @@ import { launchHost, makeSeedDir, rmDir, stdTranscript, httpRequest, redeemForCo
 
 // E2E-03 四面冒烟经真实进程（计划 v1 P0）：
 // list / replay / search 对 seeded transcript 的真实投影；
-// 错误分态：未知 session 404 notFound；未知 scope 403 scopeDenied；
+// 错误分态（⑥-B envelope 后 = 嵌套 error.code，@b0b435b）：未知 session 404 notFound；未知 scope 403 scopeDenied；
 // query 边界 0/257 码点 → 400 invalidRequest；未知路由 404。
 // 所有响应同时过 web-contract zod 客户端解析（E2E-10 判据在此预埋基础版）。
 
@@ -57,23 +57,23 @@ describe('E2E-03 four-face smoke over real process', () => {
   test('error taxonomy: unknown session 404 / unknown scope 403 / bad query bounds 400 / unknown route 404', async () => {
     const noSession = await httpRequest(host.port, '/sessions/nope/replay?scopeId=main', { headers: { cookie } })
     expect(noSession.status).toBe(404)
-    expect((JSON.parse(noSession.body) as { code?: string }).code).toBe('notFound')
+    expect((JSON.parse(noSession.body) as { error?: { code?: string } }).error?.code).toBe('notFound')
 
     const noScope = await httpRequest(host.port, '/sessions?scopeId=other', { headers: { cookie } })
     expect(noScope.status).toBe(403)
-    expect((JSON.parse(noScope.body) as { code?: string }).code).toBe('scopeDenied')
+    expect((JSON.parse(noScope.body) as { error?: { code?: string } }).error?.code).toBe('scopeDenied')
 
     const noScopeSearch = await httpRequest(host.port, '/sessions/search?scopeId=other&q=x', { headers: { cookie } })
     expect(noScopeSearch.status).toBe(403)
-    expect((JSON.parse(noScopeSearch.body) as { code?: string }).code).toBe('scopeDenied')
+    expect((JSON.parse(noScopeSearch.body) as { error?: { code?: string } }).error?.code).toBe('scopeDenied')
 
     const emptyQ = await httpRequest(host.port, '/sessions/search?scopeId=main&q=', { headers: { cookie } })
     expect(emptyQ.status).toBe(400)
-    expect((JSON.parse(emptyQ.body) as { code?: string }).code).toBe('invalidRequest')
+    expect((JSON.parse(emptyQ.body) as { error?: { code?: string } }).error?.code).toBe('invalidRequest')
 
     const longQ = await httpRequest(host.port, `/sessions/search?scopeId=main&q=${encodeURIComponent('字'.repeat(257))}`, { headers: { cookie } })
     expect(longQ.status).toBe(400)
-    expect((JSON.parse(longQ.body) as { code?: string }).code).toBe('invalidRequest')
+    expect((JSON.parse(longQ.body) as { error?: { code?: string } }).error?.code).toBe('invalidRequest')
 
     const unknownRoute = await httpRequest(host.port, '/nope', { headers: { cookie } })
     expect(unknownRoute.status).toBe(404)

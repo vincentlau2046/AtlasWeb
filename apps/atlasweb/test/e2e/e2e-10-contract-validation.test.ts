@@ -3,16 +3,23 @@ import { launchHost, makeSeedDir, rmDir, httpRequest, redeemForCookie, cookieHea
 import { request } from 'node:http'
 import { sseReader } from './e2e-04-follow-convergence.test'
 import {
+  ListSessionsSuccessSchema,
+  SearchSessionsSuccessSchema,
+  ReplaySessionSuccessSchema,
+  WebSessionErrorResponseSchema,
   WebSessionEventSchema,
 } from '@atlasharness/atlascode/web-contract'
 
 // E2E-10 浏览器侧契约验证（计划 v1 P2）：所有 HTTP 响应与 SSE 帧过
 // web-contract zod schema（浏览器 ESM 产物，zod/v4）客户端解析。
-// - 成功响应：WebSessionSuccessSchema（of: listSessions/searchSessions/replaySession 判别）；
-// - follow 帧：WebSessionEventSchema（baseline/replacement/error/closed…，closed 恒唯一 terminal）；
-// - host 层错误 JSON（{error, code}）为 host 域映射，不属契约 envelope，仅断言形态。
-// 注意（F4 @71c2208 注记）：follow 帧 cursor 字段会下发（ledger 发放），
-// 仅 resumeCursor 重入消费上游缺席——不影响本文件帧级 schema 验证。
+// 【⑥-B 已修 @b0b435b——严格 parse 全绿】：
+// - 成功形 {of, schemaVersion:0, requestId:UUID, productId, scopeId, kind:'response', ...payload}
+//   → ListSessions/SearchSessions/ReplaySessionSuccessSchema strict parse；
+// - 错误形（契约可映射码 403/404/400/429）→ WebSessionErrorResponseSchema
+//   （嵌套 error.code）；500 internal 保持裸形（非契约码，host 故障面）；
+// - follow 帧：WebSessionEventSchema（closed 恒唯一 terminal；帧面上游单源
+//   本就契约真）。cursor 字段 ledger 发放，仅 resumeCursor 重入消费上游缺席。
+// 【余留翻转面】⑥-A grow-rewrite + cursor resume 语义（0.1.121 候）。
 
 const HOST = '127.0.0.1'
 
@@ -28,7 +35,7 @@ let host: Awaited<ReturnType<typeof launchHost>>
 let dir: string
 let cookie: string
 
-describe('E2E-10 web-contract zod validation (browser-side proxy)', () => {
+describe('E2E-10 web-contract zod validation (browser-side proxy, strict)', () => {
   test('setup: launch + redeem', async () => {
     dir = makeSeedDir('atlasweb-e2e10-', {
       'sess-1': [
@@ -40,39 +47,27 @@ describe('E2E-10 web-contract zod validation (browser-side proxy)', () => {
     cookie = cookieHeaderValue(await redeemForCookie(host.port, host.token))
   }, 30000)
 
-  test('live: list/replay/search responses parse; frames parse; closed is sole terminal', async () => {
-    // 【缺陷 ⑥-B（扩大定谳）】四面 HTTP 响应均为裸 runtime payload，不符合
-    // 发布的 WebSessionSuccessSchema envelope（schema 探针 2026-11-16）：
-    // - list/search：连 of 判别字段都没有；
-    // - replay：有 of，但缺顶层 schemaVersion/productId/scopeId（requestId 亦缺）。
-    // 按总约 §4 envelope 最小语义（schemaVersion/requestId/productId/scopeId），
-    // host 应包 envelope（consumer 侧可修）。follow SSE 帧面【符合】契约 ✓。
-    // 已报 F4；host envelope 化后本组断言翻转回 WebSessionSuccessSchema.parse。
+  test('live: list/replay/search strict-parse success envelopes; frames parse; closed is sole terminal', async () => {
     const listRes = await httpRequest(host.port, '/sessions?scopeId=main', { headers: { cookie } })
     expect(listRes.status).toBe(200)
-    const listBody = JSON.parse(listRes.body) as { of?: string; schemaVersion?: number; sessions: Array<{ sessionId: string; title: string | null; createdAt: string | null; updatedAt: string; messageCount: number | null; productId: string; scopeId: string }> }
-    expect(listBody.of).toBeUndefined() // ⑥-B 现形断言（修复后翻转）
-    expect(listBody.schemaVersion).toBeUndefined() // ⑥-B 现形断言（修复后翻转）
-    expect(listBody.sessions.map(s => s.sessionId)).toContain('sess-1')
-    for (const s of listBody.sessions) {
-      expect(typeof s.updatedAt).toBe('string')
-      expect(s.productId).toBe('atlascode')
-      expect(s.scopeId).toBe('main')
-    }
+    const listParsed = ListSessionsSuccessSchema.parse(JSON.parse(listRes.body))
+    expect(listParsed.of).toBe('listSessions')
+    expect(listParsed.kind).toBe('response')
+    expect(listParsed.schemaVersion).toBe(0)
+    expect(listParsed.sessions.map(s => s.sessionId)).toContain('sess-1')
 
     const replayRes = await httpRequest(host.port, '/sessions/sess-1/replay?scopeId=main', { headers: { cookie } })
     expect(replayRes.status).toBe(200)
-    const replayBody = JSON.parse(replayRes.body) as { of?: string; schemaVersion?: number; projection?: { semantics: string; messages: Array<{ id: string; role: string; blocks: Array<{ kind: string; text?: string }> }> } }
-    expect(replayBody.of).toBe('replaySession') // replay 唯一带 of
-    expect(replayBody.schemaVersion).toBeUndefined() // ⑥-B：缺 envelope 字段（修复后翻转）
-    expect(replayBody.projection!.semantics).toBe('persisted-effective-conversation')
-    expect(replayBody.projection!.messages[0]!.blocks[0]).toEqual({ kind: 'text', text: 'the quick brown fox' })
+    const replayParsed = ReplaySessionSuccessSchema.parse(JSON.parse(replayRes.body))
+    expect(replayParsed.of).toBe('replaySession')
+    expect(replayParsed.projection.semantics).toBe('persisted-effective-conversation')
+    expect(replayParsed.projection.messages[0]!.blocks[0]).toEqual({ kind: 'text', text: 'the quick brown fox' })
 
     const searchRes = await httpRequest(host.port, '/sessions/search?scopeId=main&q=quick%20brown', { headers: { cookie } })
     expect(searchRes.status).toBe(200)
-    const searchBody = JSON.parse(searchRes.body) as { of?: string; results: Array<{ sessionId: string; messageId: string; snippet: string }> }
-    expect(searchBody.of).toBeUndefined() // ⑥-B 现形断言（修复后翻转）
-    expect(searchBody.results[0]!.sessionId).toBe('sess-1')
+    const searchParsed = SearchSessionsSuccessSchema.parse(JSON.parse(searchRes.body))
+    expect(searchParsed.of).toBe('searchSessions')
+    expect(searchParsed.results[0]!.sessionId).toBe('sess-1')
 
     // follow 帧：baseline → (追加) → replacement 全过 schema
     const res = await openFollow(host.port, { cookie })
@@ -106,14 +101,20 @@ describe('E2E-10 web-contract zod validation (browser-side proxy)', () => {
     expect(await mReader.next()).toBeNull()
   }, 30000)
 
-  test('host-domain error JSON shape (non-envelope): {error, code} present on mapped errors', async () => {
+  test('mapped errors parse as WebSessionErrorResponseSchema (nested error.code)', async () => {
     const notFound = await httpRequest(host.port, '/sessions/nope/replay?scopeId=main', { headers: { cookie } })
     expect(notFound.status).toBe(404)
-    const body = JSON.parse(notFound.body) as { error?: string; code?: string }
-    expect(body.code).toBe('notFound')
-    expect(typeof body.error).toBe('string')
-    // 契约 envelope 不用于 HTTP 错误响应（host 域映射）——显式断言分离
-    expect((body as { of?: string }).of).toBeUndefined()
+    const parsed = WebSessionErrorResponseSchema.parse(JSON.parse(notFound.body))
+    expect(parsed.kind).toBe('error')
+    expect(parsed.error.code).toBe('notFound')
+
+    const denied = await httpRequest(host.port, '/sessions?scopeId=other', { headers: { cookie } })
+    expect(denied.status).toBe(403)
+    expect(WebSessionErrorResponseSchema.parse(JSON.parse(denied.body)).error.code).toBe('scopeDenied')
+
+    const invalid = await httpRequest(host.port, '/sessions/search?scopeId=main&q=', { headers: { cookie } })
+    expect(invalid.status).toBe(400)
+    expect(WebSessionErrorResponseSchema.parse(JSON.parse(invalid.body)).error.code).toBe('invalidRequest')
   })
 
   test('teardown', async () => {
