@@ -119,3 +119,14 @@ bounded gap-null rejection, not `corruptData` (projection-level corruptData
 mapping is consumer freedom, not a gate criterion).
 
 </details>
+
+## Pairing 5 — S0-R5 follow-recovery carrier (2026-11-16)
+
+| Field | Value |
+|---|---|
+| Upstream release | `@atlasharness/atlascode@0.1.121` (npm latest; release `2c94f90f`, tag v0.1.121; SRI `docs/sri/v0.1.121.md`; npm dist.integrity `sha512-ahsY0qOV…1Tw==` identical to SRI; tarball sha256 `7fd3f95c…8f7513e4` registry 直下复核) |
+| Verified installed | `cli.js` 18,218,608B / sha256 `874ad82a…329302076`（SRI = installed 两点恒等；0.1.120↔0.121 Δ=0，两缺口改动全在 web 域）; `web-contract` 7,975B（九版恒等）; `web-session-runtime/index.js` 85,213B / sha256 `3747eb5e…f4cef511` |
+| New faces (S0-R5) | ② rewrite-larger（同 inode size>byteOffset）→ 重采样兜底：显式 `resetRequired` fail-arm（禁 `corruptData` 硬终端）；③ `resumeCursor` 实装：合法 cursor → 零重放续接（无 baseline 重发，replacement 流续）；未知/过期 cursor → 显式 fail-arm（`resetRequired` 或 `error{cursorExpired}`，禁静默 baseline 重放） |
+| Consumer legs | `e2eFindings.test.ts` ③ flip（fail-arm 断言）+ ③b 新增（合法 cursor 零重放续接全程）+ ⑥-A 新增（rewrite-larger → resetRequired，corruptData 必缺席）；RED 先行于 0.1.119 三腿全红，0.1.121 全绿 |
+| Host-side fix found in adoption | SSE 流头冲刷：`writeHead()` 后须 `res.flushHeaders()`——零重放 resume 首事件可能长期不到达（零新写入），头缓存至首写 → 消费者悬挂于无头连接；0.1.119 下被「resume 恒发 baseline」掩盖。判据腿 `followStream.test.ts` flush-headers 腿 |
+| Gate truth table | EXPECTED 锚升级（0.1.121↔0.1.119）；格 I 背书重出（Pin 变更 → 旧背书对表翻 gap 按设计生效） |

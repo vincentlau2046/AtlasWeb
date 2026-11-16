@@ -17,6 +17,6 @@
     "build": "echo 'per-package builds; see apps/atlasweb'"
   },
   "dependencies": {
-    "@atlasharness/atlascode": "0.1.119"
+    "@atlasharness/atlascode": "0.1.121"
   }
 }

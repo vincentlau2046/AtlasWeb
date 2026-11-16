@@ -231,3 +231,61 @@ describe('follow stream backpressure + slot release', () => {
     }
   })
 })
+
+// S0-R5 @0.1.121 采纳补腿（2026-11-16）：合法 resumeCursor 零重放续接下，
+// 流首事件可能长期不到达（零新写入）——SSE 响应头必须先于首事件冲刷
+// （res.flushHeaders()），否则消费者 fetch/request 悬挂于无头连接。
+test('resume stream flushes SSE headers before first event (zero-replay, static session)', async () => {
+  const { createHttpHost } = await import('../src/httpHost')
+  const { createSessionHost } = await import('../src/sessionHost')
+  const { createLaunchAuth } = await import('../src/auth')
+  const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const PORT3 = 8923
+  const dir = mkdtempSync(join(tmpdir(), 'atlasweb-flush-'))
+  try {
+    writeFileSync(join(dir, 'flush.jsonl'), [
+      JSON.stringify({ type: 'user', uuid: 'u1', parentUuid: null, timestamp: '2026-11-16T08:00:00.000Z', message: { role: 'user', content: 'hi' } }),
+      JSON.stringify({ type: 'user', uuid: 'u2', parentUuid: 'u1', timestamp: '2026-11-16T08:00:01.000Z', message: { role: 'user', content: 'again' } }),
+    ].join('\n') + '\n')
+    const sessionHost = createSessionHost({ productId: 'atlascode', scopes: [{ scopeId: 'main', storageDir: dir }] })
+    const auth = createLaunchAuth({ secret: 'flush-headers-test-secret-32bytes!!' })
+    const server = createHttpHost({ sessionHost, auth })
+    await new Promise<void>(resolve => server.listen(PORT3, HOST, resolve))
+    await sessionHost.start()
+    const base = `http://${HOST}:${PORT3}`
+    const cookie = auth.redeemLaunchToken(auth.issueLaunchToken())!
+    const headers = { host: `${HOST}:${PORT3}`, cookie: `atlas_session=${cookie}` }
+    try {
+      // 第一段：follow → baseline/replacement 拿 cursor → 断开
+      const s1 = await fetch(`${base}/sessions/flush/follow?scopeId=main`, { headers })
+      expect(s1.status).toBe(200)
+      const r1 = s1.body!.getReader() as ReadableStreamDefaultReader<Uint8Array>
+      const b1 = { text: '' }
+      const baseline = await readSseEvent(r1, b1)
+      expect(baseline.kind).toBe('baseline')
+      let cursor: string | undefined = (baseline as { cursor?: string }).cursor
+      // replacement 事件携带更末位 cursor（若到达）；基线 cursor 已足够续接
+      void Promise.race([readSseEvent(r1, b1), new Promise(r => setTimeout(r, 3000))])
+        .then((ev) => { const c = (ev as { cursor?: string } | undefined)?.cursor; if (c) cursor = c })
+        .catch(() => {})
+      await new Promise(r => setTimeout(r, 3500))
+      await r1.cancel().catch(() => {})
+      expect(cursor).toBeTruthy()
+      // 第二段：零新写入下 resume——响应头必须有界到达（当前 writeHead 不冲刷 = 悬挂）
+      const s2 = await fetch(`${base}/sessions/flush/follow?scopeId=main&cursor=${encodeURIComponent(cursor!)}`, {
+        headers,
+        signal: AbortSignal.timeout(2500),
+      })
+      expect(s2.status).toBe(200)
+      expect(s2.headers.get('content-type')).toContain('text/event-stream')
+      await s2.body!.cancel().catch(() => {})
+    } finally {
+      await new Promise<void>(resolve => server.close(() => resolve()))
+      await sessionHost.close()
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}, 20000)

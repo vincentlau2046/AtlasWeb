@@ -211,6 +211,9 @@ export function createHttpHost(options: HttpHostOptions): Server {
             'cache-control': 'no-cache',
             connection: 'keep-alive',
           })
+          // S0-R5 零重放 resume 下首事件可能长期不到达（零新写入）——
+          // writeHead 仅缓存头，须显式冲刷，否则消费者悬挂于无头连接。
+          res.flushHeaders()
           try {
             await pumpFollowEvents(sub, res, { slowConsumerMs: options.followSlowConsumerMs }, () => clientGone)
           } catch (error) {

@@ -88,10 +88,10 @@ interface PairingRollbackAttestation {
 
 const EXPECTED = {
   kind: 'pairing-rollback-attestation',
-  upgradeVersion: '0.1.119',
-  upgradeSha256Prefix: 'f4b1e4d01491738d',
-  downgradeVersion: '0.1.118',
-  downgradeSha256Prefix: '133f279a2338c6f4',
+  upgradeVersion: '0.1.121',
+  upgradeSha256Prefix: '874ad82a4cc45f1f',
+  downgradeVersion: '0.1.119',
+  downgradeSha256Prefix: 'f4b1e4d01491738d',
 } as const
 
 function isHex(s: string, len: number): boolean {
