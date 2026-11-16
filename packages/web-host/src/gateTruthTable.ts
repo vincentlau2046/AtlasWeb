@@ -60,6 +60,100 @@ function gitStatusClean(): boolean {
 
 const has = (rel: string): boolean => existsSync(join(repoRoot, rel))
 
+// 格 I 背书验证器（安全审查硬化：散文子串派生 admit 可篡改）。
+// 结构化 JSON（docs/attestations/gezi-i.json）+ 严格 schema + 交叉核验：
+// commit 祖先绑定（reportCommit 须为 HEAD 祖先）/ pin 对表 / 锚摘要 /
+// 套件计数——缺失/畸形/陈旧/错配一律 gap。残债：真来源性（CI 签名背书）
+// 登记 AtlasWeb CI 波（现仓无 CI）。
+export interface AttestationResult {
+  state: RowState
+  evidence: string
+}
+
+interface PairingRollbackAttestation {
+  schemaVersion: number
+  kind: string
+  verdict: string
+  date: string
+  reportCommit: string
+  carrier: {
+    packageName: string
+    upgradeVersion: string
+    upgradeSha256Prefix: string
+    downgradeVersion: string
+    downgradeSha256Prefix: string
+  }
+  suites: { hostPass: number; hostFail: number; e2ePass: number; e2eFail: number }
+}
+
+const EXPECTED = {
+  kind: 'pairing-rollback-attestation',
+  upgradeVersion: '0.1.119',
+  upgradeSha256Prefix: 'f4b1e4d01491738d',
+  downgradeVersion: '0.1.118',
+  downgradeSha256Prefix: '133f279a2338c6f4',
+} as const
+
+function isHex(s: string, len: number): boolean {
+  return new RegExp(`^[0-9a-f]{${len}}$`).test(s)
+}
+
+function isAncestorOfHead(commit: string): boolean {
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', commit, 'HEAD'], { cwd: repoRoot, stdio: 'ignore' })
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function verifyPairingRollbackAttestation(rawOverride?: string): AttestationResult {
+  let raw: string
+  try {
+    raw = rawOverride ?? readRepo('docs/attestations/gezi-i.json')
+  } catch {
+    return { state: 'gap', evidence: 'attestation file missing' }
+  }
+  let a: PairingRollbackAttestation
+  try {
+    a = JSON.parse(raw) as PairingRollbackAttestation
+  } catch {
+    return { state: 'gap', evidence: 'attestation malformed (not JSON)' }
+  }
+  // 严格 schema：类型逐项（任意缺失/类型错 → gap）
+  if (
+    a.schemaVersion !== 1
+    || a.kind !== EXPECTED.kind
+    || a.verdict !== 'closed'
+    || typeof a.date !== 'string' || a.date === ''
+    || typeof a.reportCommit !== 'string' || !isHex(a.reportCommit, 40)
+    || typeof a.carrier?.packageName !== 'string'
+    || a.carrier.upgradeVersion !== EXPECTED.upgradeVersion
+    || a.carrier.upgradeSha256Prefix !== EXPECTED.upgradeSha256Prefix
+    || a.carrier.downgradeVersion !== EXPECTED.downgradeVersion
+    || a.carrier.downgradeSha256Prefix !== EXPECTED.downgradeSha256Prefix
+    || !isHex(a.carrier.upgradeSha256Prefix, 16) || !isHex(a.carrier.downgradeSha256Prefix, 16)
+    || !Number.isInteger(a.suites?.hostPass) || !Number.isInteger(a.suites?.hostFail)
+    || !Number.isInteger(a.suites?.e2ePass) || !Number.isInteger(a.suites?.e2eFail)
+    || a.suites.hostFail !== 0 || a.suites.e2eFail !== 0
+    || a.suites.hostPass <= 0 || a.suites.e2ePass <= 0
+  ) {
+    return { state: 'gap', evidence: 'attestation schema/cross-check mismatch' }
+  }
+  // 陈旧/错绑：reportCommit 须为 HEAD 祖先（绑仓演进）
+  if (!isAncestorOfHead(a.reportCommit)) {
+    return { state: 'gap', evidence: 'attestation reportCommit not an ancestor of HEAD' }
+  }
+  // pin 对表：背书 upgrade 版本须与当前仓 pin 一致
+  if (carrierPin() !== a.carrier.upgradeVersion) {
+    return { state: 'gap', evidence: 'attestation upgradeVersion != current pin' }
+  }
+  return {
+    state: 'satisfied',
+    evidence: `attestation docs/attestations/gezi-i.json verified (closed @${a.reportCommit.slice(0, 8)}, ${a.carrier.downgradeVersion}↔${a.carrier.upgradeVersion} anchors, suites ${a.suites.hostPass}/0+${a.suites.e2ePass}/0)`,
+  }
+}
+
 export function evaluateGates(now: Date = new Date()): GateTable {
   const pin = carrierPin()
   const rowsG1: GateRow[] = [
@@ -133,8 +227,10 @@ export function evaluateGates(now: Date = new Date()): GateTable {
       id: 'pairing-rollback-live',
       gate: 'G2',
       criterion: '格 I：配对/回滚实测（真实 npm 降级/升级链安装动作）',
-      state: has('docs/gezi-i-pairing-rollback.md') && readRepo('docs/gezi-i-pairing-rollback.md').includes('VERDICT: CLOSED') ? 'satisfied' : 'gap',
-      evidence: '四腿实测收口（docs/gezi-i-pairing-rollback.md，2026-11-16 用户授权）：clean clone→降级 0.1.118（锚 133f279a 恒等）→回升 0.1.119（锚 f4b1e4d0 恒等+全量 90/0）→配对档 append-only 完整',
+      ...(() => {
+        const r = verifyPairingRollbackAttestation()
+        return { state: r.state, evidence: r.evidence }
+      })(),
     },
     {
       id: 'clean-candidate',

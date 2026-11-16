@@ -8,7 +8,7 @@ import { describe, expect, test } from 'bun:test'
 //   G2 = foundationReleasable：四面真 controller（A-D）/恢复竞态（E）/
 //        生命周期隔离（F）/授权围栏（G）/配对回滚实测（I）/真值表自指
 //        （J）/干净候选 checkout——全格满足才 true。
-import { evaluateGates } from '../src/gateTruthTable'
+import { evaluateGates, verifyPairingRollbackAttestation } from '../src/gateTruthTable'
 
 describe('格 J: G1/G2 gate truth table (machine-evaluated)', () => {
   const table = evaluateGates()
@@ -41,5 +41,35 @@ describe('格 J: G1/G2 gate truth table (machine-evaluated)', () => {
   test('truth table is machine-verifiable against workspace facts (pin = 0.1.119)', () => {
     expect(table.carrierVersion).toBe('0.1.119')
     expect(table.evaluatedAt).toBeTruthy()
+  })
+
+  // 安全审查硬化（格 I 背书面）：散文子串派生 admit = 可篡改——
+  // 结构化 JSON 背书 + 严格 schema + 交叉核验（commit 祖先/pin 对表/
+  // 锚摘要/套件计数），缺失/陈旧/畸形/错配一律 gap。
+  describe('格 I attestation verifier (structured, tamper-evident)', () => {
+    test('valid attestation → satisfied; all cross-checks pass', () => {
+      const r = verifyPairingRollbackAttestation()
+      expect(r.state).toBe('satisfied')
+      expect(r.evidence).toContain('gezi-i.json')
+    })
+
+    test('negative cases → gap: malformed / verdict-only prose / anchor mismatch / wrong verdict', () => {
+      const { readFileSync } = require('node:fs') as typeof import('node:fs')
+      const { join } = require('node:path') as typeof import('node:path')
+      const good = JSON.parse(readFileSync(join(import.meta.dir, '..', '..', '..', 'docs', 'attestations', 'gezi-i.json'), 'utf8')) as Record<string, unknown>
+      const cases: Array<[string, unknown]> = [
+        ['malformed', 'not json {'],
+        ['verdict-only prose', '**VERDICT: CLOSED**（散文背书不被接受）'],
+        ['anchor mismatch', JSON.stringify({ ...good, carrier: { ...good.carrier, upgradeSha256Prefix: 'deadbeef00000000' } })],
+        ['wrong verdict', JSON.stringify({ ...good, verdict: 'open' })],
+        ['not ancestor', JSON.stringify({ ...good, reportCommit: 'f'.repeat(40) })],
+        ['pin mismatch', JSON.stringify({ ...good, carrier: { ...good.carrier, upgradeVersion: '0.1.118' } })],
+        ['suite fail>0', JSON.stringify({ ...good, suites: { ...good.suites, hostFail: 1 } })],
+      ]
+      for (const [name, content] of cases) {
+        const r = verifyPairingRollbackAttestation(content)
+        expect(r.state, `${name} must be gap`).toBe('gap')
+      }
+    })
   })
 })
