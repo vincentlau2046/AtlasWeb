@@ -43,6 +43,7 @@ export interface SessionHost {
   listSessions(request: { scopeId: string }, signal?: AbortSignal): ReturnType<ReadonlySessionRuntime['listSessions']>
   replaySession(request: { scopeId: string; sessionId: string }, signal?: AbortSignal): ReturnType<ReadonlySessionRuntime['replaySession']>
   followSession(request: { scopeId: string; sessionId: string }, signal?: AbortSignal): ReturnType<ReadonlySessionRuntime['followSession']>
+  searchSessions(request: { scopeId: string; query: string }, signal?: AbortSignal): ReturnType<ReadonlySessionRuntime['searchSessions']>
   close(): Promise<void>
 }
 
@@ -138,6 +139,11 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       if (closed) throw new Error('closed')
       if (!started) throw new Error('not started')
       return runtime.followSession(request, signal)
+    },
+    async searchSessions(request, signal) {
+      if (closed) throw new Error('closed')
+      if (!started) throw new Error('not started')
+      return runtime.searchSessions(request, signal)
     },
     async close(): Promise<void> {
       if (closed) return

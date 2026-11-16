@@ -104,9 +104,9 @@ export function evaluateGates(now: Date = new Date()): GateTable {
     {
       id: 'face-search',
       gate: 'G2',
-      criterion: '格 D：searchSessions（已持久化有效投影内搜索）',
-      state: 'gap',
-      evidence: '上游缺口已立 S0-R4（0.1.119 候，登记档 @bcd47495）；落地即锚升级+补腿；pending upstream wave',
+      criterion: '格 D：searchSessions（已持久化有效投影内搜索，S0-R4 @0.1.119）',
+      state: has('packages/web-host/test/searchFace.test.ts') ? 'satisfied' : 'gap',
+      evidence: 'searchFace.test.ts GREEN（真实命中/query 界 fail-closed/scope 守卫/委派守卫）；上游 S0-R4 采 0.1.119',
     },
     {
       id: 'recovery-race-legs',

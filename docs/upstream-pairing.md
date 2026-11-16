@@ -62,6 +62,18 @@ carrier.
 | Suite | 24 pass / 0 fail (8 files) |
 | Commit security review ①② (2026-11-16) | both fixed @`986d206`; follow-up (slow-consumer termination) @`6d22e2c`: timeout path now `res.destroy()` + socket teardown (graceful end waits on flush forever under zero-window client); `followSlowConsumerMs` option (default 30s); transport-level leg = raw zero-read TCP client → `server.getConnections()` → 0 after deadline. Probe (dual-runtime): RST not event-visible to zero-read peer — server-side connection count is the portable discriminator (destroy → 0 on bun+node; graceful end → pinned at 1 = RED shape) |
 
+## Pairing 4 — S0-R4 searchSessions + F1/F2 defense-in-depth (2026-11-16)
+
+| Field | Value |
+|---|---|
+| Upstream release | `@atlasharness/atlascode@0.1.119` (npm latest; release `442f8eae`, tag v0.1.119; SRI `docs/sri/v0.1.119.md`; npm dist.integrity `sha512-ggYbm6tc…FWqajFQ==` full-value identical to SRI) |
+| Verified installed | `cli.js` 18,215,220B / sha256 `f4b1e4d0…f3bee8` (SRI = gate 预注册锚 = installed 三点恒等); `web-contract` 7,975B (七版恒等); `web-session-runtime/index.js` 78,031B (Δ+8,168B, search 域真体随形 A 载体) |
+| New face (S0-R4 件 A) | `searchSessions(req, signal)` — query 界 1–256 code points（契约面，host 预验 fail-closed 400 invalidRequest）；snippet ≤512 cps 命中起点切片；`nextPageToken` = opaque offset cursor（会话边界粒度，mtime 漂移容忍=越界空页）；取消语义 A 形（AbortSignal，'cancelled' 零 partial payload） |
+| Defense-in-depth | F1（O_NOFOLLOW + expectIno 复用域）+ F2（位置化分块读）随波落地 |
+| Consumer legs | `packages/web-host/test/searchFace.test.ts`: 真实投影命中（snippet ≤512）/ 零命中≠伪空 / query 界 400 / scopeDenied 403 / 401 / 委派 closed/not-started 守卫。格 D 四面齐 |
+| Gate truth table | `face-search` 翻绿；G2 余 `pairing-rollback-live`（格 I，待授权）单缺口 |
+| Chain | 登记档 @bcd47495 → 全工单 f0c4d19a → 审计 §6 @51c05fbd → lock-face §10 @7ecf0fa4 → 段 I d00cc534 → GATE-PASS @944fc3e5 → §11 采认 97f52c6f → release 442f8eae → 生产 lane PASS（r-20261116-prodlane-119） |
+
 ## Security review findings gating real-data G2 — CLOSED (2026-11-16)
 
 All three findings closed by upstream 0.1.118 (Pairing 3); consumer legs

@@ -5,7 +5,7 @@
 **真实事实**实测（pin / 配对档 / 测试腿文件 / git 干净度），零声明式常量。
 G1 与 G2 输出分立——G2 未齐格时 `admitted=false` 且缺口必须带处置指向。
 
-**本表快照 @ 2026-11-16（载体 0.1.118，main @6302d32+）**
+**本表快照 @ 2026-11-16（载体 0.1.119 / S0-R4，main @734e5c3+）**
 
 ## G1 = implementationAdmitted → **true**
 
@@ -21,7 +21,7 @@ G1 与 G2 输出分立——G2 未齐格时 `admitted=false` 且缺口必须带�
 |---|---|---|---|
 | face-list-replay | 格 D list/replay 真 controller | ✅ | `httpHost.test.ts` GREEN |
 | face-follow | 格 D+H follow 流（SSE+背压 fail-closed+强断+槽释放） | ✅ | `followStream`/`followPump` GREEN；安全审查三 Finding 全闭 @6d22e2c |
-| **face-search** | 格 D searchSessions | ❌ | 上游缺口 = S0-R4（0.1.119 候，登记档 @bcd47495）；pending upstream wave |
+| face-search | 格 D searchSessions（S0-R4 @0.1.119） | ✅ | `searchFace.test.ts` GREEN（真实命中/query 界 fail-closed 400/scope 守卫/委派守卫） |
 | recovery-race-legs | 格 E 恢复与竞态（S0-R3 三腿镜像） | ✅ | `s0r3-regression.test.ts` GREEN |
 | lifecycle-isolation | 格 F 双实例隔离 | ✅ | `dualInstance.test.ts` GREEN @b1368eb |
 | auth-fence | 格 G/H 授权围栏 | ✅ | `security.test.ts` + fence/auth 腿 GREEN |
@@ -31,9 +31,9 @@ G1 与 G2 输出分立——G2 未齐格时 `admitted=false` 且缺口必须带�
 
 ## 通往 G2 的最短路径
 
-1. 上游 S0-R4 落地 → 锚升级 + search 腿 → `face-search` 翻绿。
+1. ~~上游 S0-R4 落地 → 锚升级 + search 腿~~ **已完成**（0.1.119 采入，锚三点恒等：cli.js 18,215,220B / f4b1e4d0…f3bee8；Pairing 4 @pairing 留档）。
 2. 用户授权格 I → 真实降级/升级链实测 → `pairing-rollback-live` 翻绿。
-3. 两格齐 → `evaluateGates().g2.admitted = true` → G2 宣告链（gate→审计→生产 lane）。
+3. 该格齐 → `evaluateGates().g2.admitted = true` → G2 宣告链（gate→审计→生产 lane）。
 
 复评命令：`bun test packages/web-host/test/gateTruthTable.test.ts`
 （真值表随仓事实动态；快照仅为人读面，判定以评估器输出为准。）

@@ -62,6 +62,27 @@ export function createHttpHost(options: HttpHostOptions): Server {
         const url = new URL(req.url ?? '/', 'http://invalid') // authority 占位；路由只看 pathname
         const path = url.pathname
         // 3. 路由表
+        // S0-R4 件 A 第四面：search（query 界 1-256 码点 = 契约面，host 预验
+        // fail-closed；runtime 信任上层已验——readonlyRuntime.d.ts:98）。
+        if (req.method === 'GET' && path === '/sessions/search') {
+          const scopeId = url.searchParams.get('scopeId') ?? 'main'
+          const query = url.searchParams.get('q') ?? ''
+          const codePoints = [...query].length
+          if (codePoints < 1 || codePoints > 256) {
+            sendJson(res, 400, { error: 'invalid request', code: 'invalidRequest' })
+            return
+          }
+          try {
+            const result = await sessionHost.searchSessions({ scopeId, query })
+            sendJson(res, 200, result)
+          } catch (error) {
+            const code = (error as { code?: string }).code
+            if (code === 'scopeDenied') sendJson(res, 403, { error: 'scope denied', code })
+            else if (code === 'resourceLimit') sendJson(res, 429, { error: 'resource limit', code })
+            else sendJson(res, 500, { error: 'internal', code })
+          }
+          return
+        }
         if (req.method === 'GET' && path === '/sessions') {
           const scopeId = url.searchParams.get('scopeId') ?? 'main'
           try {

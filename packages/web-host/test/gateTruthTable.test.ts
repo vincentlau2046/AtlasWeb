@@ -25,12 +25,13 @@ describe('格 J: G1/G2 gate truth table (machine-evaluated)', () => {
   test('G2 = NOT admitted while hard-gate rows are open; gaps named explicitly', () => {
     expect(table.g2.admitted).toBe(false)
     const gapIds = table.g2.rows.filter(r => r.state === 'gap').map(r => r.id)
-    // 当前实况缺口：search 面（上游 S0-R4 未落地）+ 格 I 配对/回滚实测
-    expect(gapIds).toContain('face-search')
+    // 当前实况缺口：格 I 配对/回滚实测（search 面已随上游 S0-R4 @0.1.119 落地翻绿）
     expect(gapIds).toContain('pairing-rollback-live')
+    expect(gapIds).not.toContain('face-search')
     // 已满足格必须为满足（机器实测事实，非声明）
     const byId = Object.fromEntries(table.g2.rows.map(r => [r.id, r]))
     expect(byId['face-list-replay']!.state).toBe('satisfied')
+    expect(byId['face-search']!.state).toBe('satisfied')
     expect(byId['face-follow']!.state).toBe('satisfied')
     expect(byId['lifecycle-isolation']!.state).toBe('satisfied')
     expect(byId['auth-fence']!.state).toBe('satisfied')
@@ -42,8 +43,8 @@ describe('格 J: G1/G2 gate truth table (machine-evaluated)', () => {
     }
   })
 
-  test('truth table is machine-verifiable against workspace facts (pin = 0.1.118)', () => {
-    expect(table.carrierVersion).toBe('0.1.118')
+  test('truth table is machine-verifiable against workspace facts (pin = 0.1.119)', () => {
+    expect(table.carrierVersion).toBe('0.1.119')
     expect(table.evaluatedAt).toBeTruthy()
   })
 })
