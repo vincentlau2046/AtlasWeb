@@ -65,6 +65,11 @@ describe('E2E-01 host process lifecycle', () => {
       ['--port', '0', '--secret', 'short'], // 显式 secret <16B
       ['--port', '0', '--secret', 'e2e-failclosed-secret-32-bytes!!', '--scope', 'mainrelative'], // scope 缺 =
       ['--port', '0', '--secret', 'e2e-failclosed-secret-32-bytes!!', '--scope', 'main=' + dir, '--bogus'], // 未知参数
+      // 数值 flag fail-closed（F4 @0651f54 钉死：NaN → setTimeout(NaN) 立即触发 = follow 流启动即强断）
+      ['--port', '0', '--secret', 'e2e-failclosed-secret-32-bytes!!', '--scope', 'main=' + dir, '--session-ttl-ms', 'abc'],
+      ['--port', '0', '--secret', 'e2e-failclosed-secret-32-bytes!!', '--scope', 'main=' + dir, '--session-ttl-ms', '-1'],
+      ['--port', '0', '--secret', 'e2e-failclosed-secret-32-bytes!!', '--scope', 'main=' + dir, '--follow-slow-consumer-ms', 'abc'],
+      ['--port', '0', '--secret', 'e2e-failclosed-secret-32-bytes!!', '--scope', 'main=' + dir, '--follow-slow-consumer-ms', '0'],
     ]
     try {
       for (const args of cases) {
