@@ -77,6 +77,37 @@ describe('格 D searchSessions face (S0-R4 @0.1.119)', () => {
     }
   })
 
+  test('projection boundary: snipped/removed content is NOT searchable (search ⊆ replay surface)', async () => {
+    // 安全审查定谳腿：search 语义 = 已持久化有效投影内搜索（S0-R4 件 A）。
+    // 原始记录中存在但被投影排除的内容（snipMetadata removedUuids 链移除）
+    // 不得命中——search 暴露面 ⊆ replay 暴露面，零投影边界绕过。
+    const { createSessionHost } = await import('../src/sessionHost')
+    const dir = mkdtempSync(join(tmpdir(), 'atlasweb-searchb-'))
+    try {
+      writeFileSync(join(dir, 'snip.jsonl'), [
+        JSON.stringify({ type: 'user', uuid: 'keep1', parentUuid: null, timestamp: '2026-11-16T08:00:00.000Z', message: { role: 'user', content: 'public visible text' } }),
+        JSON.stringify({ type: 'user', uuid: 'gone1', parentUuid: 'keep1', timestamp: '2026-11-16T08:00:01.000Z', message: { role: 'user', content: 'SECRET-SNIPPED-CONTENT' } }),
+        JSON.stringify({ type: 'assistant', uuid: 'bnd1', parentUuid: 'gone1', timestamp: '2026-11-16T08:00:02.000Z', message: { role: 'assistant', content: [{ type: 'text', text: 'after' }] }, snipMetadata: { removedUuids: ['gone1'] } }),
+      ].join('\n') + '\n')
+      const host = createSessionHost({ productId: 'atlascode', scopes: [{ scopeId: 's', storageDir: dir }] })
+      await host.start()
+      try {
+        // 投影内内容可搜
+        const hit = await host.searchSessions({ scopeId: 's', query: 'public visible' })
+        expect(hit.results.some(r => r.snippet.toLowerCase().includes('public visible'))).toBe(true)
+        // 投影外（被 snip 移除）内容不可搜：零命中，且 replay 亦不含（同面佐证）
+        const leak = await host.searchSessions({ scopeId: 's', query: 'SECRET-SNIPPED-CONTENT' })
+        expect(leak.results).toHaveLength(0)
+        const replay = await host.replaySession({ scopeId: 's', sessionId: 'snip' })
+        expect(JSON.stringify(replay)).not.toContain('SECRET-SNIPPED-CONTENT')
+      } finally {
+        await host.close()
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   test('SessionHost.searchSessions delegate: closed/not-started guards', async () => {
     const { createSessionHost } = await import('../src/sessionHost')
     const dir = mkdtempSync(join(tmpdir(), 'atlasweb-searchd-'))

@@ -54,13 +54,29 @@ export function createHttpHost(options: HttpHostOptions): Server {
           sendJson(res, 403, { error: 'forbidden', code: 'scopeDenied' })
           return
         }
-        // 2. auth
+        const url = new URL(req.url ?? '/', 'http://invalid') // authority 占位；路由只看 pathname
+        const path = url.pathname
+        // 2a. 引导兑换路由（fence 之后、cookie 鉴权之前；token 单次性由
+        // LaunchAuth 承载，重放/坏 token → 401）。
+        if (req.method === 'GET' && path === '/auth/redeem') {
+          const token = url.searchParams.get('token') ?? ''
+          const cookie = auth.redeemLaunchToken(token)
+          if (!cookie) {
+            sendJson(res, 401, { error: 'invalid or already-redeemed token' })
+            return
+          }
+          res.writeHead(200, {
+            'content-type': 'application/json; charset=utf-8',
+            'set-cookie': `${SESSION_COOKIE}=${cookie}; HttpOnly; SameSite=Strict; Path=/`,
+          })
+          res.end(JSON.stringify({ ok: true }))
+          return
+        }
+        // 2b. auth
         if (!auth.verifySessionCookie(readCookie(req))) {
           sendJson(res, 401, { error: 'unauthorized' })
           return
         }
-        const url = new URL(req.url ?? '/', 'http://invalid') // authority 占位；路由只看 pathname
-        const path = url.pathname
         // 3. 路由表
         // S0-R4 件 A 第四面：search（query 界 1-256 码点 = 契约面，host 预验
         // fail-closed；runtime 信任上层已验——readonlyRuntime.d.ts:98）。
