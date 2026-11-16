@@ -40,12 +40,31 @@ carrier.
 | Host integration | `engine` option now optional (default carrier); explicit injection seam kept for tests; `replaySession` delegate added; lifecycle race fix (close-wins) retained; full suite 8 pass / 0 fail |
 | Package-manager discipline | npm-only lockfile (bun.lock removed); bun = test runner only |
 
-## Security review findings gating real-data G2 (registered 2026-11-16)
+## Pairing 3 — S0-R3 security hardening carrier (2026-11-16)
+
+| Field | Value |
+|---|---|
+| Upstream release | `@atlasharness/atlascode@0.1.118` (npm latest; release `363207ff`, tag v0.1.118 origin+gitcode; master `45269516` ALIGNED; SRI `docs/sri/v0.1.118.md`) |
+| Verified installed | `cli.js` 18,214,475B / sha256 `133f279a…de8cb089` (gate pre-registered anchor three-way identity) |
+| Chain | PR #1 (branch `s0-r3-security-hardening`, consumer-side direct implementation per owner directive) → f4 §9 采认 @639b23f1 → Atlas-reveiw §10 @62f69948 → header fix `720e2b95` → e2e gate 格 1-5 GREEN → merge → 0.1.118 → 生产 lane PASS |
+| Findings ①②③ | all closed: cycle → bounded gap-null (resolve visited Set); TOCTOU → fd chain (opts-presence arm, four points single-fd, post-read ino/size verify) + handoff-window double-sampling overlay retained; pre-parse bound → additive maxBytes + TranscriptTooLargeError (sanitized) → resourceLimit mapping |
+| Consumer legs | `packages/web-host/test/s0r3-regression.test.ts`: ① oversized → `resourceLimit` sanitized; ② cyclic chain → bounded gap-null (chain roots at survivor; zero hang); ③ ABA window → `ioUnavailable` retryable (handoff double-sampling). Full suite 17 pass / 0 fail |
+| Mitigation truth form | 「fd 链（函数内四点）+ 交接窗双采样守卫（叠加纵深）」 per f4 §7-3 终裁 |
+
+## Security review findings gating real-data G2 — CLOSED (2026-11-16)
+
+All three findings closed by upstream 0.1.118 (Pairing 3); consumer legs
+green. Note per f4 工单 §11 @f8233930: two defense-in-depth candidates from
+the 0.1.118 push auto-review (F1 symlink authorization-anchor gap / F2
+authorization-arm bounded allocation) are **registered for the next wave** —
+neither changes 0.1.118 behavior; default arm unaffected.
+
+<details><summary>Original registration (2026-11-16, closed by Pairing 3)</summary>
 
 Automated commit security review flagged three upstream-carrier issues in
 `createDefaultReadonlySessionRuntime` (0.1.117). All are upstream-runtime
 internals — AtlasWeb cannot fix them consumer-side and will not hand-patch.
-Until upstream ships corrected releases, the default carrier is exercised
+Until upstream shipped corrected releases, the default carrier was exercised
 **only against trusted seeded fixtures**, never untrusted transcripts:
 
 1. [HIGH] Cyclic transcript metadata → DoS in engine traversal
@@ -55,10 +74,10 @@ Until upstream ships corrected releases, the default carrier is exercised
 3. [MEDIUM] Transcript parsing resource-limit bypass: record byte/count
    limits not enforced pre-parse on the full-file loader path.
 
-**These three are G2 blockers for real-data four-face verification.**
-Registered upstream (atlas-mainline-f4 / Main) for a follow-up ticket;
-suggested direction per review: adapter-fed bounded reader, descriptor-based
-reads, cyclic-metadata rejection with `corruptData`, worker termination
-guarantees for synchronous engine work. Consumer-side regression legs will
-be added when corrected releases land (oversized-record → `resourceLimit`,
-cyclic chain → `corruptData`, ABA replacement window closed).
+**These three were G2 blockers for real-data four-face verification.**
+Registered upstream (atlas-mainline-f4 / Main); resolved by the S0-R3 ticket
+(PRs/ticket per Pairing 3). Leg-② expected shape revised by 工单 §9-7 终裁:
+bounded gap-null rejection, not `corruptData` (projection-level corruptData
+mapping is consumer freedom, not a gate criterion).
+
+</details>
