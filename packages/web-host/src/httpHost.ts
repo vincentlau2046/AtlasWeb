@@ -143,6 +143,9 @@ export function createHttpHost(options: HttpHostOptions): Server {
         const followMatch = path.match(/^\/sessions\/([^/]+)\/follow$/)
         if (req.method === 'GET' && followMatch) {
           const scopeId = url.searchParams.get('scopeId') ?? 'main'
+          // e2e 发现③：resumeCursor 经 ?cursor= 透传（opaque，域内解释；
+          // 未知/过期 cursor → 上游契约显式 resetRequired 重入）
+          const cursor = url.searchParams.get('cursor') ?? undefined
           const ac = new AbortController()
           let sub: Awaited<ReturnType<typeof sessionHost.followSession>> | null = null
           let clientGone = false
@@ -156,7 +159,7 @@ export function createHttpHost(options: HttpHostOptions): Server {
           try {
             // 订阅创建在流前：notFound/scopeDenied 等分态先映射，再切 SSE；
             // signal 贯穿上游订阅 worker（创建在途断开即时取消）。
-            sub = await sessionHost.followSession({ scopeId, sessionId: decodeURIComponent(followMatch[1]!) }, ac.signal)
+            sub = await sessionHost.followSession({ scopeId, sessionId: decodeURIComponent(followMatch[1]!), ...(cursor !== undefined ? { resumeCursor: cursor } : {}) }, ac.signal)
           } catch (error) {
             req.off('close', onClientClose)
             const code = (error as { code?: string }).code

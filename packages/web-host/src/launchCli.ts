@@ -91,8 +91,14 @@ export async function main(argv: string[]): Promise<void> {
     closing = true
     process.stderr.write(`[${signal}] shutting down\n`)
     void (async () => {
-      await new Promise<void>(resolve => server.close(() => resolve()))
-      await sessionHost.close()
+      // 关闭序（e2e 发现①）：先关 sessionHost → 活跃订阅终止 → SSE 泵
+      // 自然终流断连 → server.close 可完成；closeAllConnections 兜底
+      // （残存空闲连接强拆）。server.close 先行会永等 SSE 连接 → 挂死。
+      const closeWithTimeout = (p: Promise<void>, ms: number): Promise<void> =>
+        Promise.race([p, new Promise<void>(r => setTimeout(r, ms))])
+      await closeWithTimeout(sessionHost.close(), 2000)
+      server.closeAllConnections?.()
+      await closeWithTimeout(new Promise<void>(resolve => server.close(() => resolve())), 2000)
       process.exit(0)
     })()
   }

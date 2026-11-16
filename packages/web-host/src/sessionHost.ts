@@ -42,7 +42,7 @@ export interface SessionHost {
   start(): Promise<void>
   listSessions(request: { scopeId: string }, signal?: AbortSignal): ReturnType<ReadonlySessionRuntime['listSessions']>
   replaySession(request: { scopeId: string; sessionId: string }, signal?: AbortSignal): ReturnType<ReadonlySessionRuntime['replaySession']>
-  followSession(request: { scopeId: string; sessionId: string }, signal?: AbortSignal): ReturnType<ReadonlySessionRuntime['followSession']>
+  followSession(request: { scopeId: string; sessionId: string; resumeCursor?: string }, signal?: AbortSignal): ReturnType<ReadonlySessionRuntime['followSession']>
   searchSessions(request: { scopeId: string; query: string }, signal?: AbortSignal): ReturnType<ReadonlySessionRuntime['searchSessions']>
   close(): Promise<void>
 }
