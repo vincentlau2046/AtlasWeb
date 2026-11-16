@@ -59,7 +59,8 @@ carrier.
 | 格 D+H follow face | GREEN @`659011f` — `SessionHost.followSession` delegate + HTTP SSE bridge (`GET /sessions/:id/follow`): WebSessionEvent v0 frames, `closed` unique terminal, append → replacement convergence verified, client disconnect frees subscription slot |
 | follow missing-session ruling | in-stream `error{notFound}` → `closed` pair per upstream contract (404 pre-stream mapping stays request/response-faces only; pre-stream check would need extra scope scan + TOCTOU window) |
 | 格 D search face | **UPSTREAM GAP registered** (signal to atlas-mainline-f4 2026-11-16): `ReadonlySessionRuntime` exposes list/replay/follow only; contract schema `SearchSessionsRequestSchema` exists but no runtime implementation. AtlasWeb does not hand-copy projection-search semantics (`renderableSearchText` engine domain) and will not ship a title-filter stand-in. **Upstream confirmed & filed**: registration doc `docs/2026-11-16-s0-r4-searchsessions-registration.md` @`bcd47495` (upstream master); queued as S0-R4 = 0.1.119 候 (merged-candidate with §11 F1/F2, single lock-face, decision at wave start). Consumer legs staged, awaiting upstream landing → anchor upgrade + 格 D search legs |
-| Suite | 19 pass / 0 fail (7 files) |
+| Suite | 24 pass / 0 fail (8 files) |
+| Commit security review ①② (2026-11-16) | both fixed @`986d206`: ① subscription cancellation (AbortSignal into followSession, res-close → immediate abort+close, slot freed without next event — RED leg via maxSubscriptions=1 static-session 429→200); ② backpressure fail-closed (pumpFollowEvents: write-false pauses pulling until drain; single-pause > slowConsumerMs=30s → SlowConsumerError fail-closed; pump unit legs b1/b2/b3 with fake res — bun fetch eagerly buffers body, socket-level backpressure not constructible in-test, probe on file) |
 
 ## Security review findings gating real-data G2 — CLOSED (2026-11-16)
 
