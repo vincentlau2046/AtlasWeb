@@ -53,3 +53,49 @@ Pairing 4 ↔ f4b1e4d0）。
 - G2 硬格（§6 A–J）全满足；真值表 `pairing-rollback-live` 翻绿，
   `g2.admitted = true`。
 - G2 宣告链启动：本报告 + 真值表 → Atlas-reveiw 审计 → 宣告。
+
+---
+
+# 格 I 重出（Pairing 5 载体，2026-11-16）
+
+**VERDICT: CLOSED**（legs re-run；e2e 计数候 e2e lane E2E-06b/⑥-A 翻转确认后终发）
+
+判定单：pin 0.1.119 → 0.1.121（S0-R5）变更触发旧背书对表翻 gap（真值表
+纪律按设计生效），格 I 四腿对 Pairing 5 载体重跑。
+
+## 腿 ① 干净候选 checkout（@`3fc97a0`）
+
+| 项 | 结果 |
+|---|---|
+| fresh clone HEAD | `3fc97a0`（main tip，`git status --porcelain` 空） |
+| install | npm registry 精确 pin 0.1.121 解析成功 |
+| 载体锚 | `cli.js` 18,218,608B / sha256 `874ad82a…329302076`（= SRI = installed 两点恒等） |
+| host 套件 | 41 pass / 2 fail——2 fail **全部为背书自指行**（attestation 仍锚 0.1.119， issuance 后即闭），零无关回归 |
+
+## 腿 ② 降级 0.1.119（回滚形态）
+
+| 项 | 结果 |
+|---|---|
+| 双面 pin → 0.1.119 | npm install 成功 |
+| 载体锚 | `cli.js` 18,215,220B / sha256 `f4b1e4d0…f3bee8`（= Pairing 4 锚恒等） |
+| host 套件 | 37 pass / 6 fail——6 fail **全部精确落在预期面**：③/③b/⑥-A 三腿（S0-R5 语义于 0.1.119 缺席，RED 形即登记面）+ 真值表 pin 断言 + 背书行 ×2；**零无关回归** |
+| 判读 | 回滚可用性成立：前代配对版本可安装可运行锚可验；新代能力随版本缺席如实显形 |
+
+## 腿 ③ 回升 0.1.121（升级形态）
+
+| 项 | 结果 |
+|---|---|
+| 双面 pin → 0.1.121 | npm install 成功 |
+| 载体锚 | `cli.js` 18,218,608B / sha256 `874ad82a…`（与腿①同帧恒等） |
+| host 套件 | 41 pass / 2 fail（同腿①背书自指行） |
+| 判读 | 升级链幂等：降→升后状态与腿①全等 |
+
+## 腿 ④ 配对档 append-only 完整性
+
+`docs/upstream-pairing.md`：Pairing 1→2→3→3 addendum→4→S0-R5 登记→5
+依序在案；Pairing 5 锚（874ad82a / 3747eb5e / 7fd3f95c）与本报告腿①③实测互证。
+
+## 本波新增判据资产
+
+- ③/③b/⑥-A 消费腿（TDD：0.1.119 全 RED → 0.1.121 全 GREEN）
+- flush-headers 判据腿（host 缺陷修形：零重放 resume 首事件前 SSE 头须冲刷）
