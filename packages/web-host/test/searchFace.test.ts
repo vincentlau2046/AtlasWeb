@@ -66,7 +66,7 @@ describe('格 D searchSessions face (S0-R4 @0.1.119)', () => {
       // query 界 fail-closed：空 query / >256 码点 → 400 invalidRequest
       const empty = await fetch(`${ctx.base}/sessions/search?q=`, { headers })
       expect(empty.status).toBe(400)
-      expect((await empty.json() as { code?: string }).code).toBe('invalidRequest')
+      expect((await empty.json() as { error?: { code?: string } }).error?.code).toBe('invalidRequest')
       const tooLong = await fetch(`${ctx.base}/sessions/search?q=${encodeURIComponent('x'.repeat(257))}`, { headers })
       expect(tooLong.status).toBe(400)
       // 未授权 scope → 403 scopeDenied

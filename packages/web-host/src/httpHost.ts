@@ -13,6 +13,7 @@
  * terminal); client disconnect releases the subscription (slot freed).
  */
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
+import { randomUUID } from 'node:crypto'
 import { isLoopbackRequest } from './fence'
 import { pumpFollowEvents, SlowConsumerError } from './followPump'
 import type { LaunchAuth } from './auth'
@@ -25,6 +26,34 @@ export interface HttpHostOptions {
   auth: LaunchAuth
   /** follow 流单次背压暂停超限（ms）→ fail-closed 强断（默认 30000；测试注入用）。 */
   followSlowConsumerMs?: number
+  /** envelope productId（默认 'atlascode'；多产品部署时显式注入）。 */
+  productId?: string
+}
+
+// ⑥-B envelope（发布契约 WebSessionSuccessSchema / WebSessionErrorResponseSchema）：
+// 成功形 {of, schemaVersion:0, requestId:UUID, productId, scopeId, kind:'response', ...payload}
+// 错误形 {schemaVersion:0, requestId, productId, scopeId, kind:'error', error{code,message}}
+function sendEnvelope(res: ServerResponse, of: string, scopeId: string, productId: string, payload: Record<string, unknown>): void {
+  sendJson(res, 200, {
+    of,
+    ...payload,
+    schemaVersion: 0,
+    requestId: randomUUID(),
+    productId,
+    scopeId,
+    kind: 'response',
+  })
+}
+
+function sendContractError(res: ServerResponse, status: number, code: string, message: string, scopeId: string, productId: string): void {
+  sendJson(res, status, {
+    schemaVersion: 0,
+    requestId: randomUUID(),
+    productId,
+    scopeId,
+    kind: 'error',
+    error: { code, message },
+  })
 }
 
 function readCookie(req: IncomingMessage): string | undefined {
@@ -58,6 +87,7 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
 
 export function createHttpHost(options: HttpHostOptions): Server {
   const { sessionHost, auth } = options
+  const productId = options.productId ?? 'atlascode'
   return createServer((req, res) => {
     void (async () => {
       try {
@@ -98,16 +128,16 @@ export function createHttpHost(options: HttpHostOptions): Server {
           const query = url.searchParams.get('q') ?? ''
           const codePoints = [...query].length
           if (codePoints < 1 || codePoints > 256) {
-            sendJson(res, 400, { error: 'invalid request', code: 'invalidRequest' })
+            sendContractError(res, 400, 'invalidRequest', 'query must be 1-256 code points', scopeId, productId)
             return
           }
           try {
             const result = await sessionHost.searchSessions({ scopeId, query })
-            sendJson(res, 200, result)
+            sendEnvelope(res, 'searchSessions', scopeId, productId, result)
           } catch (error) {
             const code = (error as { code?: string }).code
-            if (code === 'scopeDenied') sendJson(res, 403, { error: 'scope denied', code })
-            else if (code === 'resourceLimit') sendJson(res, 429, { error: 'resource limit', code })
+            if (code === 'scopeDenied') sendContractError(res, 403, 'scopeDenied', 'scope denied', scopeId, productId)
+            else if (code === 'resourceLimit') sendContractError(res, 429, 'resourceLimit', 'resource limit', scopeId, productId)
             else sendJson(res, 500, { error: 'internal', code })
           }
           return
@@ -116,11 +146,11 @@ export function createHttpHost(options: HttpHostOptions): Server {
           const scopeId = url.searchParams.get('scopeId') ?? 'main'
           try {
             const result = await sessionHost.listSessions({ scopeId })
-            sendJson(res, 200, result)
+            sendEnvelope(res, 'listSessions', scopeId, productId, result)
           } catch (error) {
             const code = (error as { code?: string }).code
-            if (code === 'scopeDenied') sendJson(res, 403, { error: 'scope denied', code })
-            else if (code === 'resourceLimit') sendJson(res, 429, { error: 'resource limit', code })
+            if (code === 'scopeDenied') sendContractError(res, 403, 'scopeDenied', 'scope denied', scopeId, productId)
+            else if (code === 'resourceLimit') sendContractError(res, 429, 'resourceLimit', 'resource limit', scopeId, productId)
             else sendJson(res, 500, { error: 'internal', code })
           }
           return
@@ -130,12 +160,12 @@ export function createHttpHost(options: HttpHostOptions): Server {
           const scopeId = url.searchParams.get('scopeId') ?? 'main'
           try {
             const result = await sessionHost.replaySession({ scopeId, sessionId: decodeURIComponent(replayMatch[1]!) })
-            sendJson(res, 200, result)
+            sendEnvelope(res, 'replaySession', scopeId, productId, result)
           } catch (error) {
             const code = (error as { code?: string }).code
             const message = String((error as Error).message ?? '')
-            if (code === 'scopeDenied') sendJson(res, 403, { error: 'scope denied', code })
-            else if (code === 'notFound' || code === undefined && message.includes('not found')) sendJson(res, 404, { error: 'not found', code: code ?? 'notFound' })
+            if (code === 'scopeDenied') sendContractError(res, 403, 'scopeDenied', 'scope denied', scopeId, productId)
+            else if (code === 'notFound' || code === undefined && message.includes('not found')) sendContractError(res, 404, 'notFound', 'not found', scopeId, productId)
             else sendJson(res, 500, { error: 'internal', code: code ?? null })
           }
           return
