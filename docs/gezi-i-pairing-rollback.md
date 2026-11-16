@@ -99,3 +99,17 @@ Pairing 4 ↔ f4b1e4d0）。
 
 - ③/③b/⑥-A 消费腿（TDD：0.1.119 全 RED → 0.1.121 全 GREEN）
 - flush-headers 判据腿（host 缺陷修形：零重放 resume 首事件前 SSE 头须冲刷）
+
+## 终发（同日）
+
+e2e lane 翻转确认到达（E2E-06b GREEN：合法 cursor 零重放续接 + 头即时冲刷
+覆盖；未知 cursor 显式 resetRequired fail-arm。⑥-A GREEN：resetRequired
+reason 形 "transcript rewritten (resample prefix mismatch)"，corruptData 全程
+缺席）：**e2ePass 54 / e2eFail 0**（含 1 条 skip 腿 E2E-07 传输强断观测——
+seam 依赖，登记候）。
+
+背书终发：`docs/attestations/gezi-i.json` upgradeVersion 0.1.121 /
+downgradeVersion 0.1.119 / reportCommit `c2ab9ab` / suites host 43/0 +
+e2e 54/0（host 43 = 本 commit 后终态全绿套件，含背书自指行闭）。
+登记债：E2E-07 seam（launchCli SO_SNDBUF 收小 或 等价服务端背压确定性 seam）
+候下波翻转回 active。
