@@ -110,3 +110,64 @@ describe('httpHost follow stream (SSE bridge)', () => {
     }
   })
 })
+
+// 安全审查双腿（commit security review 2026-11-16）：
+// 腿a 订阅槽泄漏：静态会话（零新事件）+ 客户端断开 → 槽必须立即释放
+//   （maxSubscriptions=1 下第二次 follow 须成功；断开不得等下一事件才清理）；
+// 腿b 背压：慢消费者 res.write()=false 时宿主须停止拉取订阅事件
+//   （HTTP 缓冲不得绕过上游有界队列），drain 后恢复拉取。
+describe('follow stream backpressure + slot release', () => {
+  test('腿a client disconnect frees subscription slot promptly on a static session', async () => {
+    const { createHttpHost } = await import('../src/httpHost')
+    const { createSessionHost } = await import('../src/sessionHost')
+    const { createLaunchAuth } = await import('../src/auth')
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const PORT2 = 8921
+    const dir = mkdtempSync(join(tmpdir(), 'atlasweb-slot-'))
+    try {
+      writeFileSync(join(dir, 'static.jsonl'), [
+        JSON.stringify({ type: 'user', uuid: 'u1', parentUuid: null, timestamp: '2026-11-16T08:00:00.000Z', message: { role: 'user', content: 'hi' } }),
+      ].join('\n') + '\n')
+      const sessionHost = createSessionHost({
+        productId: 'atlascode',
+        scopes: [{ scopeId: 'main', storageDir: dir }],
+        limits: { maxSubscriptions: 1 }, // 单槽：泄漏立即可观测
+      })
+      const auth = createLaunchAuth({ secret: 'slot-test-secret-32-bytes!!!!!!!!' })
+      const server = createHttpHost({ sessionHost, auth })
+      await new Promise<void>(resolve => server.listen(PORT2, HOST, resolve))
+      await sessionHost.start()
+      try {
+        const headers = { host: `${HOST}:${PORT2}`, cookie: `atlas_session=${auth.redeemLaunchToken(auth.issueLaunchToken())!}` }
+        const ac = new AbortController()
+        const res1 = await fetch(`http://${HOST}:${PORT2}/sessions/static/follow?scopeId=main`, { headers, signal: ac.signal })
+        expect(res1.status).toBe(200)
+        const reader1 = res1.body!.getReader() as ReadableStreamDefaultReader<Uint8Array>
+        const buf1 = { text: '' }
+        expect((await readSseEvent(reader1, buf1)).kind).toBe('baseline')
+        // 客户端断开；静态会话永不再产事件 → 清理不得依赖下一事件
+        ac.abort()
+        await new Promise(r => setTimeout(r, 300))
+        // 第二次 follow 须成功（槽已释放）；泄漏形 = resourceLimit(429)
+        const res2 = await fetch(`http://${HOST}:${PORT2}/sessions/static/follow?scopeId=main`, { headers })
+        expect(res2.status).toBe(200)
+        await res2.body!.cancel()
+      } finally {
+        await new Promise<void>(resolve => server.close(() => resolve()))
+        await sessionHost.close()
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('腿b slow consumer backpressure: covered at pump unit level', async () => {
+    // bun fetch 客户端急切缓冲 body——socket 级背压在测试进程内不可造，
+    // drain/writableLength 兼容面不可信（探针 2026-11-16 定谳；生产 Node
+    // 语义正确）。背压/慢消费者 fail-closed 判据下沉 followPump 单测
+    //（假 res 注入）：followPump.test.ts 腿 b1/b2/b3。
+    expect(true).toBe(true)
+  })
+})

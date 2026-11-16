@@ -14,6 +14,7 @@
  */
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { isLoopbackRequest } from './fence'
+import { pumpFollowEvents, SlowConsumerError } from './followPump'
 import type { LaunchAuth } from './auth'
 import type { SessionHost } from './sessionHost'
 
@@ -90,11 +91,22 @@ export function createHttpHost(options: HttpHostOptions): Server {
         const followMatch = path.match(/^\/sessions\/([^/]+)\/follow$/)
         if (req.method === 'GET' && followMatch) {
           const scopeId = url.searchParams.get('scopeId') ?? 'main'
+          const ac = new AbortController()
           let sub: Awaited<ReturnType<typeof sessionHost.followSession>> | null = null
+          let clientGone = false
+          const onClientClose = (): void => {
+            clientGone = true
+            ac.abort()
+            // 立即释放（不等下一事件唤醒拉取循环）；close 幂等
+            void sub?.close().catch(() => {})
+          }
+          req.on('close', onClientClose)
           try {
-            // 订阅创建在流前：notFound/scopeDenied 等分态先映射，再切 SSE。
-            sub = await sessionHost.followSession({ scopeId, sessionId: decodeURIComponent(followMatch[1]!) })
+            // 订阅创建在流前：notFound/scopeDenied 等分态先映射，再切 SSE；
+            // signal 贯穿上游订阅 worker（创建在途断开即时取消）。
+            sub = await sessionHost.followSession({ scopeId, sessionId: decodeURIComponent(followMatch[1]!) }, ac.signal)
           } catch (error) {
+            req.off('close', onClientClose)
             const code = (error as { code?: string }).code
             const message = String((error as Error).message ?? '')
             if (code === 'scopeDenied') sendJson(res, 403, { error: 'scope denied', code })
@@ -103,27 +115,29 @@ export function createHttpHost(options: HttpHostOptions): Server {
             else sendJson(res, 500, { error: 'internal', code: code ?? null })
             return
           }
+          if (clientGone) {
+            // 创建在途即断开：订阅已随 signal 取消/关闭，零响应面
+            req.off('close', onClientClose)
+            await sub.close().catch(() => {})
+            return
+          }
           res.writeHead(200, {
             'content-type': 'text/event-stream; charset=utf-8',
             'cache-control': 'no-cache',
             connection: 'keep-alive',
           })
-          let clientGone = false
-          req.on('close', () => { clientGone = true })
           try {
-            for await (const event of sub) {
-              if (clientGone || res.writableEnded) break
-              res.write(`data: ${JSON.stringify(event)}\n\n`)
-              // closed 恒唯一 terminal（error → closed 成对送达，终态后零数据事件）
-              if (event.kind === 'closed') break
-            }
-          } catch {
-            // 订阅侧异常（resetRequired 重连域之外的分态）：尽力终流；
-            // 消费者按 SSE 重连语义处理。
+            await pumpFollowEvents(sub, res, undefined, () => clientGone)
+          } catch (error) {
+            // 订阅侧异常 / 慢消费者超限（SlowConsumerError → fail-closed 终流 +
+            // 订阅释放，槽位归零；消费者按 SSE 重连语义处理）。
+            void error
           } finally {
-            if (!clientGone && !res.writableEnded) res.end()
+            req.off('close', onClientClose)
+            ac.abort()
             // 客户端断开/流终 → 订阅释放（槽位归零，close 幂等）
             await sub.close().catch(() => {})
+            if (!clientGone && !res.writableEnded) res.end()
           }
           return
         }
