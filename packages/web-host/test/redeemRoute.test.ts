@@ -56,6 +56,14 @@ describe('auth redeem bootstrap route', () => {
       // 未带 cookie 的 /sessions 仍 401
       const noCookie = await fetch(`${ctx.base}/sessions`, { headers: { host: `${HOST}:${PORT}` } })
       expect(noCookie.status).toBe(401)
+      // CWE-522 非环境型凭据路径：Authorization: Bearer <credential> 等价
+      //（不随浏览器自动附着——E2E/CLI 客户端零跨端口 cookie jar 暴露）
+      const bearer = await fetch(`${ctx.base}/sessions`, { headers: { host: `${HOST}:${PORT}`, authorization: `Bearer ${cookie}` } })
+      expect(bearer.status).toBe(200)
+      const badBearer = await fetch(`${ctx.base}/sessions`, { headers: { host: `${HOST}:${PORT}`, authorization: `Bearer tampered.${cookie}` } })
+      expect(badBearer.status).toBe(401)
+      const junkBearer = await fetch(`${ctx.base}/sessions`, { headers: { host: `${HOST}:${PORT}`, authorization: 'Bearer nonsense' } })
+      expect(junkBearer.status).toBe(401)
     } finally {
       await ctx.stop()
     }

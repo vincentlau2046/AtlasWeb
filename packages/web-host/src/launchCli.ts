@@ -19,16 +19,19 @@
 import { createSessionHost, type SessionHost } from './sessionHost'
 import { createLaunchAuth } from './auth'
 import { createHttpHost } from './httpHost'
+import { randomBytes } from 'node:crypto'
 
 interface CliArgs {
   port: number
-  secret: string
+  /** 可选：显式 secret（仅测试用——argv 经 /proc/cmdline 世界可读，CWE-214）。缺省 = 进程内 randomBytes(32) 即弃 secret。 */
+  secret?: string
   scopes: Array<{ scopeId: string; storageDir: string }>
   followSlowConsumerMs?: number
+  sessionTtlMs?: number
 }
 
 function parseArgs(argv: string[]): CliArgs {
-  const args: CliArgs = { port: 0, secret: '', scopes: [] }
+  const args: CliArgs = { port: 0, scopes: [] }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!
     if (a === '--port') args.port = Number(argv[++i] ?? '')
@@ -39,9 +42,10 @@ function parseArgs(argv: string[]): CliArgs {
       if (eq <= 0) throw new Error(`--scope expects id=dir, got "${spec}"`)
       args.scopes.push({ scopeId: spec.slice(0, eq), storageDir: spec.slice(eq + 1) })
     } else if (a === '--follow-slow-consumer-ms') args.followSlowConsumerMs = Number(argv[++i] ?? '')
+    else if (a === '--session-ttl-ms') args.sessionTtlMs = Number(argv[++i] ?? '')
     else throw new Error(`unknown argument: ${a}`)
   }
-  if (!args.secret || args.secret.length < 16) throw new Error('--secret required (>=16 bytes)')
+  if (args.secret !== undefined && args.secret.length < 16) throw new Error('--secret (if given) must be >=16 bytes')
   if (!Number.isInteger(args.port) || args.port < 0 || args.port > 65535) throw new Error('--port invalid')
   if (args.scopes.length === 0) throw new Error('at least one --scope id=dir required')
   return args
@@ -53,7 +57,12 @@ export async function main(argv: string[]): Promise<void> {
     productId: 'atlascode',
     scopes: args.scopes,
   })
-  const auth = createLaunchAuth({ secret: args.secret })
+  const auth = createLaunchAuth({
+    // CWE-214：缺省即弃 secret（randomBytes 32B，仅存进程内）；--secret 形态
+    // 仅供测试复现，勿在生产使用（/proc/cmdline 世界可读）。
+    secret: args.secret ?? randomBytes(32).toString('base64url'),
+    ...(args.sessionTtlMs !== undefined ? { sessionTtlMs: args.sessionTtlMs } : {}),
+  })
   const server = createHttpHost({
     sessionHost,
     auth,

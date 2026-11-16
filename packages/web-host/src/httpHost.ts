@@ -37,6 +37,19 @@ function readCookie(req: IncomingMessage): string | undefined {
   return undefined
 }
 
+/**
+ * 凭据读取：ambient cookie 或非环境型 Bearer（CWE-522 处置——cookie 按
+ * RFC 为 host 作用域不分端口，浏览器侧控制 = fence 严格 Host/Origin 相等；
+ * E2E/CLI 客户端走 Authorization: Bearer 零 cookie jar 跨端口暴露）。
+ */
+function readCredential(req: IncomingMessage): string | undefined {
+  const cookie = readCookie(req)
+  if (cookie) return cookie
+  const authz = req.headers.authorization
+  if (authz?.startsWith('Bearer ')) return authz.slice('Bearer '.length) || undefined
+  return undefined
+}
+
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   const payload = JSON.stringify(body)
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' })
@@ -72,8 +85,8 @@ export function createHttpHost(options: HttpHostOptions): Server {
           res.end(JSON.stringify({ ok: true }))
           return
         }
-        // 2b. auth
-        if (!auth.verifySessionCookie(readCookie(req))) {
+        // 2b. auth（ambient cookie 或非环境型 Bearer 凭据等价验证）
+        if (!auth.verifySessionCookie(readCredential(req))) {
           sendJson(res, 401, { error: 'unauthorized' })
           return
         }

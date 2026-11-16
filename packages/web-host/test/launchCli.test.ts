@@ -56,4 +56,68 @@ describe('launchCli seam (E2E-01/02 anchor)', () => {
       rmSync(dir, { recursive: true, force: true })
     }
   })
+
+  test('CWE-214: no --secret → ephemeral in-process secret, zero argv exposure', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'atlasweb-cli2-'))
+    const child = spawn('bun', [CLI, '--port', '0', '--scope', `main=${dir}`], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    let stdout = ''
+    let stderr = ''
+    child.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
+    child.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+    try {
+      const readyLine = await (async (): Promise<Record<string, unknown>> => {
+        for (let i = 0; i < 100; i++) {
+          const line = stdout.split('\n').find(l => l.trim().startsWith('{'))
+          if (line) return JSON.parse(line) as Record<string, unknown>
+          await new Promise(r => setTimeout(r, 100))
+        }
+        throw new Error(`no ready line; stdout=${stdout} stderr=${stderr}`)
+      })()
+      expect(readyLine['ready']).toBe(true)
+      const port = readyLine['port'] as number
+      // token→cookie 全链照常（secret 对客户端永不可见）
+      const redeem = await fetch(`http://127.0.0.1:${port}/auth/redeem?token=${encodeURIComponent(readyLine['token'] as string)}`, { headers: { host: `127.0.0.1:${port}` } })
+      expect(redeem.status).toBe(200)
+    } finally {
+      child.kill('SIGKILL')
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('--session-ttl-ms: short ttl → cookie expires → 401 (E2E-02 过期腿 seam)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'atlasweb-cli3-'))
+    const child = spawn('bun', [CLI, '--port', '0', '--session-ttl-ms', '150', '--scope', `main=${dir}`], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    let stdout = ''
+    let stderr = ''
+    child.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
+    child.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+    try {
+      const readyLine = await (async (): Promise<Record<string, unknown>> => {
+        for (let i = 0; i < 100; i++) {
+          const line = stdout.split('\n').find(l => l.trim().startsWith('{'))
+          if (line) return JSON.parse(line) as Record<string, unknown>
+          await new Promise(r => setTimeout(r, 100))
+        }
+        throw new Error(`no ready line; stdout=${stdout} stderr=${stderr}`)
+      })()
+      const port = readyLine['port'] as number
+      const redeem = await fetch(`http://127.0.0.1:${port}/auth/redeem?token=${encodeURIComponent(readyLine['token'] as string)}`, { headers: { host: `127.0.0.1:${port}` } })
+      expect(redeem.status).toBe(200)
+      const cookie = /atlas_session=([^;]+)/.exec(redeem.headers.get('set-cookie') ?? '')![1]!
+      // ttl 内有效
+      const fresh = await fetch(`http://127.0.0.1:${port}/sessions`, { headers: { host: `127.0.0.1:${port}`, cookie: `atlas_session=${cookie}` } })
+      expect(fresh.status).toBe(200)
+      // 过期后 → 401
+      await new Promise(r => setTimeout(r, 400))
+      const expired = await fetch(`http://127.0.0.1:${port}/sessions`, { headers: { host: `127.0.0.1:${port}`, cookie: `atlas_session=${cookie}` } })
+      expect(expired.status).toBe(401)
+    } finally {
+      child.kill('SIGKILL')
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
 })
