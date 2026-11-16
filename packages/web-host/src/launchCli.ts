@@ -47,6 +47,15 @@ function parseArgs(argv: string[]): CliArgs {
   }
   if (args.secret !== undefined && args.secret.length < 16) throw new Error('--secret (if given) must be >=16 bytes')
   if (!Number.isInteger(args.port) || args.port < 0 || args.port > 65535) throw new Error('--port invalid')
+  // 数值参数 fail-closed（e2e 发现④）：NaN/Infinity 不得静默入
+  // createLaunchAuth（ttl 行为未定义）/ pump 超时（setTimeout(NaN) 即触发
+  // = 每条 follow 流被立刻强断）。
+  if (args.sessionTtlMs !== undefined && (!Number.isFinite(args.sessionTtlMs) || args.sessionTtlMs <= 0)) {
+    throw new Error('--session-ttl-ms must be a positive finite number')
+  }
+  if (args.followSlowConsumerMs !== undefined && (!Number.isFinite(args.followSlowConsumerMs) || args.followSlowConsumerMs <= 0)) {
+    throw new Error('--follow-slow-consumer-ms must be a positive finite number')
+  }
   if (args.scopes.length === 0) throw new Error('at least one --scope id=dir required')
   return args
 }

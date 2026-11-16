@@ -86,6 +86,23 @@ describe('launchCli seam (E2E-01/02 anchor)', () => {
     }
   })
 
+  test('④ fail-closed: non-numeric numeric params → non-zero exit, zero ready line (ttl + slow-consumer)', async () => {
+    for (const bad of [['--session-ttl-ms', 'abc'], ['--follow-slow-consumer-ms', 'abc']]) {
+      const dir = mkdtempSync(join(tmpdir(), 'atlasweb-cli4-'))
+      const child = spawn('bun', [CLI, '--port', '0', ...bad, '--scope', `main=${dir}`], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      })
+      let stdout = ''
+      let stderr = ''
+      child.stdout.on('data', (d: Buffer) => { stdout += d.toString() })
+      child.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+      const code = await new Promise<number>(resolve => child.once('exit', c => resolve(c ?? -1)))
+      expect(code, `${bad.join('=')} should exit non-zero`).not.toBe(0)
+      expect(stdout).not.toContain('"ready"')
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   test('--session-ttl-ms: short ttl → cookie expires → 401 (E2E-02 过期腿 seam)', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'atlasweb-cli3-'))
     const child = spawn('bun', [CLI, '--port', '0', '--session-ttl-ms', '150', '--scope', `main=${dir}`], {
