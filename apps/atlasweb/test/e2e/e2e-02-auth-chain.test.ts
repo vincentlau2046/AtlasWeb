@@ -90,6 +90,47 @@ describe('E2E-02 auth chain over real process', () => {
     }
   }, 30000)
 
+  test('expired cookie: short ttl via --session-ttl-ms → fresh 200 then 401 after expiry', async () => {
+    const dir4 = makeSeedDir('atlasweb-e2e02d-', { 'sess-1': stdTranscript() })
+    try {
+      const host4 = await launchHost({ scopes: [{ id: 'main', dir: dir4 }], extraArgs: ['--session-ttl-ms', '150'] })
+      try {
+        const cookie4 = cookieHeaderValue(await redeemForCookie(host4.port, host4.token))
+        const fresh = await httpRequest(host4.port, '/sessions', { headers: { cookie: cookie4 } })
+        expect(fresh.status).toBe(200)
+        await new Promise(resolve => setTimeout(resolve, 400))
+        const expired = await httpRequest(host4.port, '/sessions', { headers: { cookie: cookie4 } })
+        expect(expired.status).toBe(401)
+      } finally {
+        await host4.stop()
+      }
+    } finally {
+      rmDir(dir4)
+    }
+  }, 30000)
+
+  test('Bearer credential form: redeem credential accepted via Authorization header (CWE-522 disposition)', async () => {
+    const dir5 = makeSeedDir('atlasweb-e2e02e-', { 'sess-1': stdTranscript() })
+    try {
+      const host5 = await launchHost({ scopes: [{ id: 'main', dir: dir5 }] })
+      try {
+        const setCookie = await redeemForCookie(host5.port, host5.token)
+        const credential = setCookie.split(';')[0]!.split('=').slice(1).join('=')
+        const viaBearer = await httpRequest(host5.port, '/sessions', { headers: { authorization: `Bearer ${credential}` } })
+        expect(viaBearer.status).toBe(200)
+        const badBearer = await httpRequest(host5.port, '/sessions', { headers: { authorization: 'Bearer forged-credential' } })
+        expect(badBearer.status).toBe(401)
+        // redeem 单次性对 Bearer 形态同样承载：token 已消费，无法再取凭据
+        const replay = await httpRequest(host5.port, `/auth/redeem?token=${encodeURIComponent(host5.token)}`)
+        expect(replay.status).toBe(401)
+      } finally {
+        await host5.stop()
+      }
+    } finally {
+      rmDir(dir5)
+    }
+  }, 30000)
+
   test('teardown: SIGTERM graceful', async () => {
     const code = await host.stop()
     expect(code).toBe(0)

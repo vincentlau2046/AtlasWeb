@@ -5,7 +5,9 @@ import { createServer } from 'node:net'
 // E2E-01 真实进程启动与健康（计划 v1）：
 // 1. --port 0 → ready 行 JSON（port>0、token 非空），进程存活；
 // 2. SIGTERM → 优雅关闭退出 0，端口释放（可重新绑定）；
-// 3. fail-closed：缺 secret / 坏 scope 格式 / 未知参数 → 非零退出、零部分启动（无 ready 行）。
+// 3. 缺 --secret → 正常 ready（CWE-214 处置：缺省 = 进程内 randomBytes(32) 即弃 secret，
+//    零 argv secret 暴露）；
+// 4. fail-closed：显式 --secret <16B / 坏 scope 格式 / 未知参数 → 非零退出、零部分启动。
 
 describe('E2E-01 host process lifecycle', () => {
   test('launches on kernel-assigned port and emits exactly one ready line', async () => {
@@ -41,13 +43,26 @@ describe('E2E-01 host process lifecycle', () => {
     }
   }, 30000)
 
+  test('missing --secret → normal ready with ephemeral in-process secret (CWE-214 disposition)', async () => {
+    const dir = makeSeedDir('atlasweb-e2e01d-', { 'sess-1': stdTranscript() })
+    let host: Awaited<ReturnType<typeof launchHost>> | null = null
+    try {
+      // 不传 secret：必须正常 ready（旧 fail-closed 行为已按 CWE-214 处置废止）
+      host = await launchHost({ scopes: [{ id: 'main', dir }], secret: undefined })
+      expect(host.port).toBeGreaterThan(0)
+      expect(host.token.length).toBeGreaterThan(0)
+    } finally {
+      if (host) await host.stop()
+      rmDir(dir)
+    }
+  }, 30000)
+
   test('fail-closed: bad args exit non-zero with zero partial startup (no ready line)', async () => {
     const dir = makeSeedDir('atlasweb-e2e01c-', { 'sess-1': stdTranscript() })
     const { spawn } = await import('node:child_process')
     const LAUNCH_CLI = new URL('../../../../packages/web-host/src/launchCli.ts', import.meta.url).pathname
     const cases: string[][] = [
-      ['--port', '0'], // 缺 secret
-      ['--port', '0', '--secret', 'short'], // secret <16B
+      ['--port', '0', '--secret', 'short'], // 显式 secret <16B
       ['--port', '0', '--secret', 'e2e-failclosed-secret-32-bytes!!', '--scope', 'mainrelative'], // scope 缺 =
       ['--port', '0', '--secret', 'e2e-failclosed-secret-32-bytes!!', '--scope', 'main=' + dir, '--bogus'], // 未知参数
     ]
