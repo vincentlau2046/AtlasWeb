@@ -42,6 +42,7 @@ export interface SessionHost {
   start(): Promise<void>
   listSessions(request: { scopeId: string }, signal?: AbortSignal): ReturnType<ReadonlySessionRuntime['listSessions']>
   replaySession(request: { scopeId: string; sessionId: string }, signal?: AbortSignal): ReturnType<ReadonlySessionRuntime['replaySession']>
+  followSession(request: { scopeId: string; sessionId: string }, signal?: AbortSignal): ReturnType<ReadonlySessionRuntime['followSession']>
   close(): Promise<void>
 }
 
@@ -132,6 +133,11 @@ export function createSessionHost(options: SessionHostOptions): SessionHost {
       if (closed) throw new Error('closed')
       if (!started) throw new Error('not started')
       return runtime.replaySession(request, signal)
+    },
+    async followSession(request, signal) {
+      if (closed) throw new Error('closed')
+      if (!started) throw new Error('not started')
+      return runtime.followSession(request, signal)
     },
     async close(): Promise<void> {
       if (closed) return

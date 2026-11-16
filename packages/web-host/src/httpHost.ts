@@ -7,8 +7,10 @@
  * by the upstream-published runtime; no product directory is ever read
  * here (that is the adapter's authorized domain alone).
  *
- * follow (WS/SSE stream) is a follow-up slice; this carrier ships the
- * request/response faces.
+ * follow = SSE bridge over the upstream follow subscription (格 D+H):
+ * GET /sessions/:id/follow streams WebSessionEvent v0 frames
+ * (baseline/replacement/resetRequired/error/closed — closed 恒唯一
+ * terminal); client disconnect releases the subscription (slot freed).
  */
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { isLoopbackRequest } from './fence'
@@ -82,6 +84,46 @@ export function createHttpHost(options: HttpHostOptions): Server {
             if (code === 'scopeDenied') sendJson(res, 403, { error: 'scope denied', code })
             else if (code === 'notFound' || code === undefined && message.includes('not found')) sendJson(res, 404, { error: 'not found', code: code ?? 'notFound' })
             else sendJson(res, 500, { error: 'internal', code: code ?? null })
+          }
+          return
+        }
+        const followMatch = path.match(/^\/sessions\/([^/]+)\/follow$/)
+        if (req.method === 'GET' && followMatch) {
+          const scopeId = url.searchParams.get('scopeId') ?? 'main'
+          let sub: Awaited<ReturnType<typeof sessionHost.followSession>> | null = null
+          try {
+            // 订阅创建在流前：notFound/scopeDenied 等分态先映射，再切 SSE。
+            sub = await sessionHost.followSession({ scopeId, sessionId: decodeURIComponent(followMatch[1]!) })
+          } catch (error) {
+            const code = (error as { code?: string }).code
+            const message = String((error as Error).message ?? '')
+            if (code === 'scopeDenied') sendJson(res, 403, { error: 'scope denied', code })
+            else if (code === 'notFound' || code === undefined && message.includes('not found')) sendJson(res, 404, { error: 'not found', code: code ?? 'notFound' })
+            else if (code === 'resourceLimit') sendJson(res, 429, { error: 'resource limit', code })
+            else sendJson(res, 500, { error: 'internal', code: code ?? null })
+            return
+          }
+          res.writeHead(200, {
+            'content-type': 'text/event-stream; charset=utf-8',
+            'cache-control': 'no-cache',
+            connection: 'keep-alive',
+          })
+          let clientGone = false
+          req.on('close', () => { clientGone = true })
+          try {
+            for await (const event of sub) {
+              if (clientGone || res.writableEnded) break
+              res.write(`data: ${JSON.stringify(event)}\n\n`)
+              // closed 恒唯一 terminal（error → closed 成对送达，终态后零数据事件）
+              if (event.kind === 'closed') break
+            }
+          } catch {
+            // 订阅侧异常（resetRequired 重连域之外的分态）：尽力终流；
+            // 消费者按 SSE 重连语义处理。
+          } finally {
+            if (!clientGone && !res.writableEnded) res.end()
+            // 客户端断开/流终 → 订阅释放（槽位归零，close 幂等）
+            await sub.close().catch(() => {})
           }
           return
         }
