@@ -137,3 +137,19 @@ e2e lane 复跑确认：**e2ePass 54 / e2eFail 0 / 1 skip**（与上轮全等，
 `docs/attestations/gezi-i.json` upgrade 0.1.122 / downgrade 0.1.121 /
 锚前缀双面同值 `874ad82a`（docs-only 产物零位移）/ reportCommit `5316ffe` /
 suites host 43/0 + e2e 54/0（host 43 = 本 commit 后终态全绿）。
+
+---
+
+# 格 I 重出（Pairing 7 载体 0.1.123 产品码波，2026-11-17）
+
+**VERDICT: CLOSED**（host 腿闭合；e2e 计数候 lane 复跑确认）
+
+| 腿 | 结果 |
+|---|---|
+| ① 干净候选 @`6d9b50d` | install 0.1.123 成功；cli.js 锚 `a960bb5f…`（= SRI）；host 41/2（2 fail = 背书自指行，issuance 后闭） |
+| ② 降级 0.1.122 | install 成功；cli.js 锚 `874ad82a…`（= Pairing 6 锚恒等）；host 40/3（3 fail = pin 断言 + 背书行 ×2，预期面零无关回归） |
+| ③ 回升 0.1.123 | 锚同帧恒等；host 41/2 幂等 |
+| ④ append-only | Pairing 7 依序在案 |
+
+消费面判读：runtime bundle/web-contract 字节级未变——回滚/回升在消费域行为全等，
+cli.js 差异（roles 修）不在四读面触及范围。
