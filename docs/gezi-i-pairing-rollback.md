@@ -113,3 +113,19 @@ downgradeVersion 0.1.119 / reportCommit `c2ab9ab` / suites host 43/0 +
 e2e 54/0（host 43 = 本 commit 后终态全绿套件，含背书自指行闭）。
 登记债：E2E-07 seam（launchCli SO_SNDBUF 收小 或 等价服务端背压确定性 seam）
 候下波翻转回 active。
+
+---
+
+# 格 I 轻量重出（Pairing 6 载体 0.1.122 docs-only，2026-11-17）
+
+**VERDICT: CLOSED**（host 腿闭合；e2e 计数候 lane 确认——载体产物与 0.1.121 字节级恒等，面集零变）
+
+| 腿 | 结果 |
+|---|---|
+| ① 干净候选 @`0bb5e10` | install 0.1.122 成功；cli.js 锚 `874ad82a…` 恒等；host 41/2（2 fail = 背书自指行，issuance 后闭） |
+| ② 降级 0.1.121 | install 成功；cli.js 锚 `874ad82a…` **同值**（docs-only 双版本恒等实证）；host 40/3（3 fail = pin 断言 + 背书行 ×2，预期面零无关回归） |
+| ③ 回升 0.1.122 | 锚同帧恒等；host 41/2（同腿①）幂等 |
+| ④ append-only | Pairing 6 依序在案 |
+
+判读注记：docs-only 波下降级/升级锚同值——「版本位移、产物零位移」；
+rollback 可用性由版本面 pin 解析承载，行为面两版全等。
