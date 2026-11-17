@@ -140,3 +140,13 @@ mapping is consumer freedom, not a gate criterion).
 | Verified installed | `cli.js` 18,218,608B / sha256 `874ad82a…329302076`（**与 0.1.121 字节级恒等**，SRI docs-only 恒等实证）；`web-session-runtime/index.js` 85,213B / `3747eb5e…` 恒等；`web-contract` 7,975B 恒等；差异仅 docs 面（unpacked +650B） |
 | Consumer legs | 全套件 GREEN（除背书对表行按设计翻 gap）；零行为位移 → 消费腿零改 |
 | Gate truth table | EXPECTED 版本位移 0.1.121→0.1.122（锚前缀双面同值，恒等实证注记在案）；格 I 轻量重出（downgrade 0.1.121） |
+
+## Pairing 7 — S0 0.1.123 modelRoles normalizeRef carrier (2026-11-17)
+
+| Field | Value |
+|---|---|
+| Upstream release | `@atlasharness/atlascode@0.1.123`（npm latest；release `88e343b8`，tag v0.1.123；SRI `docs/sri/v0.1.123.md`；npm dist.integrity `sha512-IpAbH2zH…Acn4A==` = SRI 三源一致） |
+| 波形 | **产品码波**：modelRoles 池臂 normalizeRef 根修（issue #3-1，PR #4 as-is + Main fixup；gate r-20261117-gate-0123 GATE-PASS）；bun 1.4.4 工具链新锚 |
+| Verified installed | `cli.js` 18,219,983B / sha256 `a960bb5f…913ccc`（= SRI 恒等）；**`web-session-runtime/index.js` 85,213B / `3747eb5e…f4cef511` 字节级未变**（SRI「工具链新锚同面预期变更」注记实测未兑现——runtime 零位移）；`web-contract` 7,975B 十版恒等 |
+| Consumer faces | 零位移——roles 域改动不触四读面/恢复语义；套件全绿（除对表行按设计翻 gap）；S0-R5 语义腿 standing |
+| Gate truth table | EXPECTED 升级（0.1.123↔0.1.122 新锚对）；格 I 全量重出（产品码波不适用 docs-only 降格） |

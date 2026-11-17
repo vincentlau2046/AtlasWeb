@@ -91,11 +91,12 @@ interface PairingRollbackAttestation {
 
 const EXPECTED = {
   kind: 'pairing-rollback-attestation',
-  upgradeVersion: '0.1.122',
-  // 0.1.122 = docs-only 波：cli.js 与 0.1.121 字节级恒等（同锚前缀，
-  // SRI docs/sri/v0.1.122.md 恒等实证）——版本位移、产物零位移。
-  upgradeSha256Prefix: '874ad82a4cc45f1f',
-  downgradeVersion: '0.1.121',
+  upgradeVersion: '0.1.123',
+  // 0.1.123 = 产品码波（modelRoles normalizeRef 根修）：cli.js 新锚
+  // a960bb5f…（SRI docs/sri/v0.1.123.md）；web-session-runtime/web-contract
+  // 字节级未变（3747eb5e…/7,975B）——消费面零位移。
+  upgradeSha256Prefix: 'a960bb5f306d17a8',
+  downgradeVersion: '0.1.122',
   downgradeSha256Prefix: '874ad82a4cc45f1f',
 } as const
 
