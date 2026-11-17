@@ -5,15 +5,15 @@
 **真实事实**实测（pin / 配对档 / 测试腿文件 / git 干净度），零声明式常量。
 G1 与 G2 输出分立——G2 未齐格时 `admitted=false` 且缺口必须带处置指向。
 
-**本表快照 @ 2026-11-17（载体 0.1.122 / docs-only，Pairing 6，格 I 轻量重出后）——G2 = admitted**
+**本表快照 @ 2026-11-17（载体 0.1.123 / Pairing 7，格 I 重出后）——G2 = admitted**
 
 ## G1 = implementationAdmitted → **true**
 
 | 行 | 判据 | 状态 | 证据 |
 |---|---|---|---|
 | repo-created | 独立仓已建（web-host 载体在案） | ✅ | repo root + packages/web-host |
-| carrier-exact-pin | 载体精确 pin（双面一致，禁 link/源拼接） | ✅ | `@atlasharness/atlascode` = 0.1.122 exact |
-| pairing-records | 配对档在案、锚逐字验证 | ✅ | Pairing 1–6；0.1.122 锚 `874ad82a…329302076`（docs-only：与 0.1.121 产物字节级恒等，SRI = installed 两点恒等） |
+| carrier-exact-pin | 载体精确 pin（双面一致，禁 link/源拼接） | ✅ | `@atlasharness/atlascode` = 0.1.123 exact |
+| pairing-records | 配对档在案、锚逐字验证 | ✅ | Pairing 1–7；0.1.123 锚 `a960bb5f…913ccc`（= SRI；runtime/web-contract 字节级未变——消费面零位移） |
 
 ## G2 = foundationReleasable → **true**（全格满足，格 I 收口 @`docs/gezi-i-pairing-rollback.md`）
 
@@ -25,7 +25,7 @@ G1 与 G2 输出分立——G2 未齐格时 `admitted=false` 且缺口必须带�
 | recovery-race-legs | 格 E 恢复与竞态（S0-R3 三腿镜像） | ✅ | `s0r3-regression.test.ts` GREEN |
 | lifecycle-isolation | 格 F 双实例隔离 | ✅ | `dualInstance.test.ts` GREEN @b1368eb |
 | auth-fence | 格 G/H 授权围栏 | ✅ | `security.test.ts` + fence/auth 腿 GREEN |
-| pairing-rollback-live | 格 I 配对/回滚实测 | ✅ | 轻量重出 CLOSED（Pairing 6 载体 0.1.122 docs-only，背书 @docs/attestations/gezi-i.json，reportCommit `5316ffe`）：clean clone `0bb5e10` → 降/升 0.1.121↔0.1.122 锚双面同值 `874ad82a`（产物零位移）、预期面 fail 零无关回归 → 终态 host 43/0 + e2e 54/0 → 配对档 append-only 完整 |
+| pairing-rollback-live | 格 I 配对/回滚实测 | ✅ | 重出 CLOSED（Pairing 7 载体 0.1.123 产品码波，背书 @docs/attestations/gezi-i.json，reportCommit `b278d2d`）：clean clone `6d9b50d` → 降 0.1.122 锚 `874ad82a` 恒等 → 回升 0.1.123 锚 `a960bb5f` 幂等（预期面 fail 零无关回归）→ 终态 host 43/0 + e2e 54/0 → 配对档 append-only 完整 |
 | clean-candidate | 干净候选 checkout | ✅/动态 | `git status --porcelain` 空（评估器实测；有残留即翻 gap） |
 | truth-table-self | 格 J 真值表机器评估 | ✅ | 本评估器（自指行） |
 
