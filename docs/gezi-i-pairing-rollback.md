@@ -153,3 +153,10 @@ suites host 43/0 + e2e 54/0（host 43 = 本 commit 后终态全绿）。
 
 消费面判读：runtime bundle/web-contract 字节级未变——回滚/回升在消费域行为全等，
 cli.js 差异（roles 修）不在四读面触及范围。
+
+## 终发（2026-11-17）
+
+e2e lane 复跑确认：**e2ePass 54 / e2eFail 0 / 1 skip**（两轮稳定，S0-R5 standing；
+2 fail = 等终发预期中间态）。背书终发：upgrade 0.1.123 锚 `a960bb5f` /
+downgrade 0.1.122 锚 `874ad82a` / reportCommit `b278d2d` / suites host 43/0 +
+e2e 54/0。
