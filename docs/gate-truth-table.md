@@ -41,3 +41,7 @@ G2 = admitted（2026-11-16）→ 本表 + 格 I 报告 → Atlas-reveiw 审计 �
 
 复评命令：`bun test packages/web-host/test/gateTruthTable.test.ts`
 （真值表随仓事实动态；快照仅为人读面，判定以评估器输出为准。）
+
+## Atlas-reveiw G2 审计 verdict（2026-11-17）：**通过**——G2 admitted = true 采认，宣告链闭合
+
+独立复现 43/0 + e2e 54/1skip/0（43+54=97 恰合）；锚跨仓对表逐字 ✓；背书硬化域 + 7 负例腿 ✓；格 I 重出判读成立。登记级注记 2 条（不阻）：(a) 头注收窄（已采认落地 @gateTruthTable.ts）；(b) 安装品 cli.js sha256 重算步 → CI 波池（与签名背书残债同池，已录头注）。
