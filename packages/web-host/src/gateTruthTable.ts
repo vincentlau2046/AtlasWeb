@@ -91,10 +91,12 @@ interface PairingRollbackAttestation {
 
 const EXPECTED = {
   kind: 'pairing-rollback-attestation',
-  upgradeVersion: '0.1.121',
+  upgradeVersion: '0.1.122',
+  // 0.1.122 = docs-only 波：cli.js 与 0.1.121 字节级恒等（同锚前缀，
+  // SRI docs/sri/v0.1.122.md 恒等实证）——版本位移、产物零位移。
   upgradeSha256Prefix: '874ad82a4cc45f1f',
-  downgradeVersion: '0.1.119',
-  downgradeSha256Prefix: 'f4b1e4d01491738d',
+  downgradeVersion: '0.1.121',
+  downgradeSha256Prefix: '874ad82a4cc45f1f',
 } as const
 
 function isHex(s: string, len: number): boolean {
