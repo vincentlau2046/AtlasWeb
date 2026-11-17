@@ -129,3 +129,11 @@ e2e 54/0（host 43 = 本 commit 后终态全绿套件，含背书自指行闭）
 
 判读注记：docs-only 波下降级/升级锚同值——「版本位移、产物零位移」；
 rollback 可用性由版本面 pin 解析承载，行为面两版全等。
+
+## 终发（2026-11-17）
+
+e2e lane 复跑确认：**e2ePass 54 / e2eFail 0 / 1 skip**（与上轮全等，两轮稳定；
+全仓 2 fail = 等终发的背书自指行预期中间态）。背书终发：
+`docs/attestations/gezi-i.json` upgrade 0.1.122 / downgrade 0.1.121 /
+锚前缀双面同值 `874ad82a`（docs-only 产物零位移）/ reportCommit `5316ffe` /
+suites host 43/0 + e2e 54/0（host 43 = 本 commit 后终态全绿）。
