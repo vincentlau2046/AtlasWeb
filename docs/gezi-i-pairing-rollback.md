@@ -176,3 +176,10 @@ e2e 54/0。
 
 消费面判读：runtime/web-contract 字节级未变（theme 常量域不触四读面）——
 回滚/回升在消费域行为全等。
+
+## 终发（2026-11-18）
+
+e2e lane 复跑确认：**e2ePass 54 / e2eFail 0 / 1 skip**（两轮稳定；2 fail =
+等终发预期中间态）。背书终发：upgrade 0.1.124 锚 `4f75289b` /
+downgrade 0.1.123 锚 `a960bb5f` / reportCommit `07a130d` / suites host 43/0 +
+e2e 54/0。
