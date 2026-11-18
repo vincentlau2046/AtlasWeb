@@ -150,3 +150,13 @@ mapping is consumer freedom, not a gate criterion).
 | Verified installed | `cli.js` 18,219,983B / sha256 `a960bb5f…913ccc`（= SRI 恒等）；**`web-session-runtime/index.js` 85,213B / `3747eb5e…f4cef511` 字节级未变**（SRI「工具链新锚同面预期变更」注记实测未兑现——runtime 零位移）；`web-contract` 7,975B 十版恒等 |
 | Consumer faces | 零位移——roles 域改动不触四读面/恢复语义；套件全绿（除对表行按设计翻 gap）；S0-R5 语义腿 standing |
 | Gate truth table | EXPECTED 升级（0.1.123↔0.1.122 新锚对）；格 I 全量重出（产品码波不适用 docs-only 降格） |
+
+## Pairing 8 — S0 0.1.124 theme-WCAG carrier (2026-11-18)
+
+| Field | Value |
+|---|---|
+| Upstream release | `@atlasharness/atlascode@0.1.124`（npm latest；release `e2ae5598`，tag v0.1.124；SRI `docs/sri/v0.1.124.md`；npm dist.integrity `sha512-bVZI3OVs…VIA==` = SRI 三源一致） |
+| 波形 | **产品码波**：theme 灰阶 WCAG 对比度硬化（外部 PR #5，C 形第二例；GATE-RED→改判→GATE-PASS→prodlane PASS） |
+| Verified installed | `cli.js` 18,219,983B / sha256 `4f75289b…1eabd9`（= SRI 三点链第二例；size 与 0.1.123 恒等、hash 变更源 = theme 常量字面值）；**`web-session-runtime/index.js` 85,213B / `3747eb5e…f4cef511` 字节级未变**；`web-contract` 7,975B 恒等 |
+| Consumer faces | 零位移——theme 常量域不触四读面/恢复语义；套件全绿（除对表行按设计翻 gap）；S0-R5 腿 standing |
+| Gate truth table | EXPECTED 升级（0.1.124↔0.1.123）；格 I 全量重出（产品码波） |

@@ -38,8 +38,8 @@ describe('格 J: G1/G2 gate truth table (machine-evaluated)', () => {
     expect(byId['truth-table-self']!.state).toBe('satisfied')
   })
 
-  test('truth table is machine-verifiable against workspace facts (pin = 0.1.123)', () => {
-    expect(table.carrierVersion).toBe('0.1.123')
+  test('truth table is machine-verifiable against workspace facts (pin = 0.1.124)', () => {
+    expect(table.carrierVersion).toBe('0.1.124')
     expect(table.evaluatedAt).toBeTruthy()
   })
 

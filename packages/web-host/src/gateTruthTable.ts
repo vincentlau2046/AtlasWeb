@@ -91,13 +91,14 @@ interface PairingRollbackAttestation {
 
 const EXPECTED = {
   kind: 'pairing-rollback-attestation',
-  upgradeVersion: '0.1.123',
-  // 0.1.123 = 产品码波（modelRoles normalizeRef 根修）：cli.js 新锚
-  // a960bb5f…（SRI docs/sri/v0.1.123.md）；web-session-runtime/web-contract
-  // 字节级未变（3747eb5e…/7,975B）——消费面零位移。
-  upgradeSha256Prefix: 'a960bb5f306d17a8',
-  downgradeVersion: '0.1.122',
-  downgradeSha256Prefix: '874ad82a4cc45f1f',
+  upgradeVersion: '0.1.124',
+  // 0.1.124 = 产品码波（theme 灰阶 WCAG，C 形第二例）：cli.js 新锚
+  // 4f75289b…（SRI docs/sri/v0.1.124.md，size 与 0.1.123 恒等、hash 变更
+  // 源 = theme 常量字面值）；web-session-runtime/web-contract 字节级未变
+  // （3747eb5e…/7,975B）——消费面零位移。
+  upgradeSha256Prefix: '4f75289b28edefcd',
+  downgradeVersion: '0.1.123',
+  downgradeSha256Prefix: 'a960bb5f306d17a8',
 } as const
 
 function isHex(s: string, len: number): boolean {
