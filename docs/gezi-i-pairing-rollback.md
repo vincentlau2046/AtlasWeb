@@ -160,3 +160,19 @@ e2e lane 复跑确认：**e2ePass 54 / e2eFail 0 / 1 skip**（两轮稳定，S0-
 2 fail = 等终发预期中间态）。背书终发：upgrade 0.1.123 锚 `a960bb5f` /
 downgrade 0.1.122 锚 `874ad82a` / reportCommit `b278d2d` / suites host 43/0 +
 e2e 54/0。
+
+---
+
+# 格 I 重出（Pairing 8 载体 0.1.124 产品码波，2026-11-18）
+
+**VERDICT: CLOSED**（host 腿闭合；e2e 计数候 lane 复跑确认）
+
+| 腿 | 结果 |
+|---|---|
+| ① 干净候选 @`cafd876` | install 0.1.124 成功；cli.js 锚 `4f75289b…`（= SRI 三点链第二例）；host 41/2（2 fail = 背书自指行） |
+| ② 降级 0.1.123 | 锚 `a960bb5f…`（= Pairing 7 锚恒等）；host 40/3（预期面零无关回归） |
+| ③ 回升 0.1.124 | 锚同帧恒等幂等；host 41/2 |
+| ④ append-only | Pairing 8 依序在案 |
+
+消费面判读：runtime/web-contract 字节级未变（theme 常量域不触四读面）——
+回滚/回升在消费域行为全等。
