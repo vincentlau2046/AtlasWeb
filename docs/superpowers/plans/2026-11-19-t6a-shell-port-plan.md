@@ -164,10 +164,10 @@ Expected: FAIL（vendor/ 不存在）
 - Modify: 根 `package.json`（build script 接 vite）
 - Test: `apps/atlasweb/test/smoke.test.ts`（构建产物 fetch 级烟测）
 
-- [ ] **Step 1: RED——烟测腿**：vite build → serve dist → fetch /auth/redeem → 四面全通断言 + **只读红线 grep 负腿——词表预注册化（审计 §C 注记③）**：逐词列明标识符形（`composer` / `approval` / `prompt(` / `queueMessage` / `cancelSession` 等实际词表于实现时冻结入 `docs/t6a-readonly-lexicon.md`）+ 豁免表（replay 投影内合法 prompt 字样排除面逐条入表，禁裸 grep）。
-- [ ] **Step 2: 接 vite 构建 + 入口。**
-- [ ] **Step 3: GREEN** + 全仓。
-- [ ] **Step 4: Commit** `feat(app): atlasweb vite entry + four-face bundle smoke`
+- [x] **Step 1: RED——烟测腿**：vite build → serve dist → fetch /auth/redeem → 四面全通断言 + **只读红线 grep 负腿——词表预注册化（审计 §C 注记③）**：逐词列明标识符形（`composer` / `approval` / `prompt(` / `queueMessage` / `cancelSession` 等实际词表于实现时冻结入 `docs/t6a-readonly-lexicon.md`）+ 豁免表（replay 投影内合法 prompt 字样排除面逐条入表，禁裸 grep）。
+- [x] **Step 2: 接 vite 构建 + 入口。**
+- [x] **Step 3: GREEN** + 全仓。
+- [x] **Step 4: Commit** `feat(app): atlasweb vite entry + four-face bundle smoke`
 
 ### Task 10: 门格收口
 
