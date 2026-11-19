@@ -175,10 +175,10 @@ Expected: FAIL（vendor/ 不存在）
 - Modify: `docs/upstream-pairing.md`（T6-A 波档）、`THIRD_PARTY_NOTICES.md` 核对
 - Test: 全仓 bun test + web-host 套件核对
 
-- [ ] **Step 1: 边界交叉**——AtlasCode 仓跑 `scripts/atlasweb-kernel-boundary-scan.ts` 对 AtlasWeb 源，violation=0。
-- [ ] **Step 2: 不动面核对**——web-host 43/0；G1/G2 真值表 admitted；依赖行 bump 判定（变更行数=0 预期）。
-- [ ] **Step 3: 全仓 bun test 绿 + 只读红线终核。**
-- [ ] **Step 4: 波档落 docs + commit** `docs: T6-A wave closeout — gates, boundary, pairing record`；版本记候选 0.1.0，**tag 不自发**，e2e lane 回执 + 发布链候用户。
+- [x] **Step 1: 边界交叉**——AtlasCode 仓跑 `scripts/atlasweb-kernel-boundary-scan.ts` 对 AtlasWeb 源，violation=0。
+- [x] **Step 2: 不动面核对**——web-host 43/0；G1/G2 真值表 admitted；依赖行 bump 判定（变更行数=0 预期）。
+- [x] **Step 3: 全仓 bun test 绿 + 只读红线终核。**
+- [x] **Step 4: 波档落 docs + commit** `docs: T6-A wave closeout — gates, boundary, pairing record`；版本记候选 0.1.0，**tag 不自发**，e2e lane 回执 + 发布链候用户。
 
 ## Registered debts（T6-A 波登记债——回审绑定条件①，可逆通道）
 
