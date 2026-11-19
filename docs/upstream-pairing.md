@@ -177,3 +177,12 @@ Plan `docs/superpowers/plans/2026-11-19-t6a-shell-port-plan.md`（审计通过�
 | THIRD_PARTY_NOTICES 核对 | 零新增第三方源移植面：dsh（MIT）+ vendored cordis 既有覆盖不变；本波新增 npm 运行时依赖为声明行补齐（use-sync-external-store MIT），vite/@vitejs/plugin-react 为 devDep 不入产物 |
 | 版本候选 | `apps/atlasweb` 0.1.0 候选——**tag 不自发**；e2e lane 回执 + 发布链候用户 |
 | 登记债 | D-1 katex 数学渲染 / D-2 shiki 语法高亮 / D-3 桌面字号快捷键——均 open（内容无损降格，R1 回审通道，见 plan §Registered debts） |
+
+### T6-A closeout addendum — 审计 verdict 与条件兑现 (2026-11-20)
+
+| Field | Value |
+|---|---|
+| 审计 verdict | Atlas-reveiw 波终抽验 **有条件采认**：全门格独立复现（干净树 382-run / web-host 43/0 / 边界扫描独立复跑 violation=0 / scanner 补丁 23/0 / carrier pin 双点实读恒等 / 波档六面对表全在案）+ 定形采认 1 条（use-sync-external-store 补声明 = phantom-dep formalization 非新增依赖，§C-2(c) 不触发完整重验） |
+| 审计复跑插曲（如实档） | 审计侧两轮假阳性：CLI 形 230 violations（CLI 无 external-deps 面，fail-closed 如实）；programmatic 形 6 violations（证据装配缺口：node:module 漏列 + mdast 裸指明符未映射）——两轮均被证据面解释、无一带过，**fail-closed 语义实证** |
+| 条件兑现：收口门 runner 落仓 | `scripts/verify-kernel-boundary.ts`（本仓）——一条命令复现波终门：闭包证据全从本仓现读（manifest deps∪devDeps 全 workspace 面 + tsconfig.base.json paths 派生 vendor 别名 9 + node 内建 ×10 逐项列举 + mdast→@types/mdast 映射），scanner 单一事实源 = 配对仓 AtlasCode（ATLASCODE_ROOT 覆写，不 vendored 不手拷）；退出码 0/1/2 三态 fail-closed。**canonical 复现值：allowed=true / violations=0 / externalImports=238 / roots 16 / declared 54**（与波档原录 238 恰合；审计侧 230 = 复建装配广度差，落仓后单一装配面收口） |
+| 判据腿 | `packages/web-host/test/kernelBoundaryRunner.test.ts` 3 腿：runner 在位 + 一条命令复现断言（allowed/violations/证据面）+ fail-closed 负腿锁（scanner 缺席 → exit 2 零结论产出，环境缺口不得伪装成绿） |
