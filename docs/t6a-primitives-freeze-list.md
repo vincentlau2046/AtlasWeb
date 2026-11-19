@@ -76,6 +76,7 @@ dsh 侧这些行落在 devDependencies（tsdown 打包吞入）；AtlasWeb 无 b
 ## 5. 计数与停腿发现
 
 - **文件粒度：≈ 112 > 60**；符号粒度（工单"全量 203"口径）≈ 115–140 > 60。
+- **移植实测勘误（2026-11-20，@2d563c0）**：定点迭代实得 **115 文件**（较估算 +11 传递内部件——focus/input-modality/keyboard-composition/overlay-top-margin/tooltip-placement/useMenuSubmenu/useModalLayer/ShortcutKeys(+css)/RowDragPreview.module.css/file-drag-actions/markdown/diff-fence，全数服务已批准原子，无一新增 dep 行）；B 案实移植 = 111 verbatim + 4 适配（parse/highlight/CodeBlock/ReadBlock/FenceBlocks/render/MarkdownText/icons-index 按适配组计 8 处改形）。
 - **两种口径均触发 plan Task 5 Step 1 预注册停腿"清单超 60 原子即回审"。**
 - 定因：replay 面 = coding session 投影渲染，其诚实闭包必含 markdown 管线 + 工具卡块族（G4+G3 ≈ 65 文件）——工单"估 30–60"在 (c) 面闭包算出前作出，被闭包证伪。
 - 次发现：(a) 面零原子（§1），原子集全由 (c) 面驱动——清单性质从"扫描产物"变为"Task 8 预注册契约"，Task 8 停腿（审计 §C 必改②b）成为唯一防外溢机制。
