@@ -15,6 +15,7 @@ export type {
   IconReplacements, ThemeDefinition, ThemeSnapshot, ThemeTokenInspection,
   ThemeTokenModes, ThemeTokenOverrides, ThemeTokens,
 } from './theme-runtime.ts'
+export type { FontFamilies, FontRole, FontSizes } from '../theme-settings.ts'
 export { installIconSprite } from './icon-sprite.ts'
 export { installThemeStyles } from './styles.ts'
 
