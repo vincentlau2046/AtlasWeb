@@ -99,10 +99,10 @@ Expected: FAIL（vendor/ 不存在）
 - Create: 主题 token 源接口消费 `@atlasweb/web-brand` 槽位形
 - Test: token 解析腿 + **R5 负腿**（禁入词汇 import 断言=0）
 
-- [ ] **Step 1: RED——token 腿 + R5 负腿**（负腿先行 FAIL 因空壳无断言对象→先建断言骨架）。
-- [ ] **Step 2: 适配移植**（边替换点逐文件头注 `Adapted: settings edge → brand slot`）。
-- [ ] **Step 3: GREEN** + 全仓。
-- [ ] **Step 4: Commit** `feat(web-theme): adapted port — settings/shortcuts edges stripped to brand slot`
+- [x] **Step 1: RED——token 腿 + R5 负腿**（负腿先行 FAIL 因空壳无断言对象→先建断言骨架）——4 测试文件 21 腿，RED 18 fail（负腿文件缺席形 3 腿先绿如实）。
+- [x] **Step 2: 适配移植**（边替换点逐文件头注；styles/ 13 资产 + theme-settings/css-modules verbatim；boot-theme import 换位；theme-runtime 抽核适配；client/index 裁剪面）。
+- [x] **Step 3: GREEN** + 全仓（web-theme 21/0；全仓候提交后复评）。
+- [x] **Step 4: Commit** `feat(web-theme): adapted port — settings/shortcuts edges stripped to brand slot`
 
 ### Task 5: web-primitives 选择闭包（清单驱动）
 
