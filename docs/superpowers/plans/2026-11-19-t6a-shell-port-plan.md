@@ -45,7 +45,7 @@
 **Interfaces:**
 - Produces: `@atlasweb/vendor/*` 可解析的 cordis/cosmokit/schemastery 源；后续所有任务的框架层。
 
-- [ ] **Step 1: RED——vendor 冒烟腿**
+- [x] **Step 1: RED——vendor 冒烟腿**
 
 ```ts
 // tests/vendor-smoke.test.ts
@@ -64,9 +64,9 @@ test('vendor manifest dual-face pin recorded', () => {
 Run: `bun test tests/vendor-smoke.test.ts`
 Expected: FAIL（vendor/ 不存在）
 
-- [ ] **Step 2: verbatim 拷贝** `git -C ~/projects/deepseek-harness archive dsh-v0.2.2-rc.2 vendor | tar -x`（在工作树根）+ 双面 pin README。
-- [ ] **Step 3: GREEN** 同命令 Expected: PASS。**若 cordis/bun 不兼容 → R2 升级呈批，停片。**
-- [ ] **Step 4: Commit** `feat(vendor): dsh-v0.2.2-rc.2 vendor foundation verbatim + dual-face pin`
+- [x] **Step 2: verbatim 拷贝** `git -C ~/projects/deepseek-harness archive dsh-v0.2.2-rc.2 vendor | tar -x`（在工作树根）+ 双面 pin README。
+- [x] **Step 3: GREEN** 同命令 Expected: PASS。**若 cordis/bun 不兼容 → R2 升级呈批，停片。**
+- [x] **Step 4: Commit** `feat(vendor): dsh-v0.2.2-rc.2 vendor foundation verbatim + dual-face pin`
 
 ### Task 2: web-store + web-modules（干净集 verbatim）
 
@@ -75,10 +75,10 @@ Expected: FAIL（vendor/ 不存在）
 - Modify: 两包 `package.json`（name 改 `@atlasweb/web-store` 等；deps 对齐）
 - Test: `packages/web-store/test/`、`packages/web-modules/test/`（自 dsh@tag 对应 tests 移植代表腿）
 
-- [ ] **Step 1: RED——移植 dsh store 代表测试腿**（改 import 至 `@atlasweb/web-store`），Run: FAIL（空壳）。
-- [ ] **Step 2: 拷贝源码**（store 4 件 verbatim；modules 15 件，package-manifest/host-webserver 引用边局部类型化处理，头注标注）。
-- [ ] **Step 3: GREEN** + 全仓 `bun test`。
-- [ ] **Step 4: Commit** `feat(web-store,web-modules): port dsh store/modules verbatim (+edge notes)`
+- [x] **Step 1: RED——移植 dsh store 代表测试腿**（改 import 至 `@atlasweb/web-store`），Run: FAIL（空壳）。
+- [x] **Step 2: 拷贝源码**（store 4 件 verbatim；modules 15 件，package-manifest/host-webserver 引用边局部类型化处理，头注标注）。
+- [x] **Step 3: GREEN** + 全仓 `bun test`。
+- [x] **Step 4: Commit** `feat(web-store,web-modules): port dsh store/modules verbatim (+edge notes)`
 
 ### Task 3: web-slots + web-renderer（干净集 verbatim）
 
@@ -112,6 +112,7 @@ Expected: FAIL（vendor/ 不存在）
 - Test: 每入选原子 ≥1 腿
 
 - [ ] **Step 1: 冻结清单**——扫描基准（审计 §C 必改②a）：**dsh@tag `client/web` + `client/ui-layout` 对 ui-primitives 实引闭包 + S6 计划视图设计稿**（非 Task 7/8 视图源——彼时未存在，时序悖论），落档。**清单超 60 原子即回审。**
+  - **前置扫描发现（2026-11-19）**：`client/web/src/seed.ts` 对 ui-primitives 为 `import *` 命名空间注册（boot 模块表注册制）→ (a) 面不产出原子枚举，原子集由 (c) S6 设计驱动；**S5 seed 适配形 = 冻结原子命名空间 shim**（仅重导出冻结清单原子，否决全量 203 移植）——与移植形三分法一致， shim 属 S5 新码。
 - [ ] **Step 2: RED**（入选原子代表腿）。
 - [ ] **Step 3: 选择拷贝**（util-code-language 边局部化）。
 - [ ] **Step 4: GREEN** + 全仓 → **Commit**（清单档随片）。
