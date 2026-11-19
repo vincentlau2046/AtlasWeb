@@ -160,3 +160,20 @@ mapping is consumer freedom, not a gate criterion).
 | Verified installed | `cli.js` 18,219,983B / sha256 `4f75289b…1eabd9`（= SRI 三点链第二例；size 与 0.1.123 恒等、hash 变更源 = theme 常量字面值）；**`web-session-runtime/index.js` 85,213B / `3747eb5e…f4cef511` 字节级未变**；`web-contract` 7,975B 恒等 |
 | Consumer faces | 零位移——theme 常量域不触四读面/恢复语义；套件全绿（除对表行按设计翻 gap）；S0-R5 腿 standing |
 | Gate truth table | EXPECTED 升级（0.1.124↔0.1.123）；格 I 全量重出（产品码波） |
+
+## T6-A wave closeout record — shell 基座移植 + Code 只读 bundle (2026-11-20)
+
+Plan `docs/superpowers/plans/2026-11-19-t6a-shell-port-plan.md`（审计通过，双信号授权）；Tasks 1–10 全闭环。本节为波级收口档（Pairing 行保持逐 carrier 不变，此处记波内事实）。
+
+| Field | Value |
+|---|---|
+| Deliverables | `packages/web-{brand,mode,code}`（四视图只读 bundle）+ `apps/atlasweb` vite 6.4.6 构建入口（main.tsx boot 装配链：web-renderer client → theme → brand → layout → web-code → mount）+ `docs/t6a-readonly-lexicon.md`（11 词表单一事实源） |
+| Task 8 / 9 审计 | Atlas-reveiw 采认（Task 8 +1 条件；Task 9 采认全合） |
+| 边界交叉 scan | **violation=0，allowed=true，externalImports=238**。复合形：programmatic runner（CLI 无 external-deps 面）+ closure evidence（package.json deps 并集 + tsconfig vendor 别名 9 项 + node: builtins ×10 + mdast 类型包映射）；扫描器语义补丁在 AtlasCode 侧 TDD 落地（commit `7eecb79c`：bundler query 后缀剥离 + 模块标识符字符集门，均负腿锁定）；扫描捕真 2 条缺失依赖行已补（web-renderer use-sync-external-store、web-shell @atlasweb/web-modules，commit `7b579b2`） |
+| 门格 | 全仓 bun test **381 pass / 1 skip / 0 fail**（54 files）；web-host 专项 **43/0**；G1/G2 真值表 admitted（clean-candidate 行提交后复评自解，同 Task 8 先例）；只读红线 = 词表扫描源面 + dist 面零命中（smoke 腿内含） |
+| 依赖行 bump 判定 | carrier pin `@atlasharness/atlascode@0.1.124` **版本 + sha512 恒等**（变更行数=0 预期成立）；lockfile delta 仅解析注记面（npmmirror registry URL 字段 + atlascode/{ink,react} 子路径条目），Task 9 审计注记既案 |
+| react-virtual dep 行处置 | **行已删除**（web-shell platform.ts，Task 7 零消费剔除纪律；Task 8 维持零消费——web-code windowing.ts 以自算切片供给同判据：固定估高行窗 + overscan，单代码路径、DOM-free 可直测；react-virtual hook 形需浏览器测量，测试约束内不可运行）。**swing-back 语义登记**：冻结清单预注册的 @tanstack/react-virtual 仍为白名单可用项；re-trigger 形 = 后续波出现真实虚拟化需求（变高行/超大体量列表）时，恢复 dep 行 + platform 表再录入 + windowing 供给切换为 hook 形（有界挂载判据 REPLAY_WINDOW_SIZE=60+overscan 10 不变，仅换供给）；回摆须过 R1 回审（冻结清单增补），Task 8 停腿语义照常 |
+| insertAdjacentHTML 处置 | web-shell apply-injections.ts（dsh 原形逐字移植）：结构化 index-injection 表解释器，`insertAdjacentHTML('beforeend', row.html)` 的源面 = boot payload 静态注入表（web-host seed 构造，编译期事实，非用户输入汇）；script 行走 textContent/script-src 行走 loadScript transport。保留，无需改造 |
+| THIRD_PARTY_NOTICES 核对 | 零新增第三方源移植面：dsh（MIT）+ vendored cordis 既有覆盖不变；本波新增 npm 运行时依赖为声明行补齐（use-sync-external-store MIT），vite/@vitejs/plugin-react 为 devDep 不入产物 |
+| 版本候选 | `apps/atlasweb` 0.1.0 候选——**tag 不自发**；e2e lane 回执 + 发布链候用户 |
+| 登记债 | D-1 katex 数学渲染 / D-2 shiki 语法高亮 / D-3 桌面字号快捷键——均 open（内容无损降格，R1 回审通道，见 plan §Registered debts） |
