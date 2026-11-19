@@ -140,9 +140,9 @@ Expected: FAIL（vendor/ 不存在）
 - Modify: `packages/web-layout/src/`（18 件基型：ui-session/shortcuts/locale 边 → web-code 槽注册 + brand 槽）
 - Test: boot 序列腿（模块表→loader→renderer handoff）+ R5 负腿
 
-- [ ] **Step 1: RED**（boot 序列腿 + R5 负腿）。
-- [ ] **Step 2: 适配移植。**
-- [ ] **Step 3: GREEN** + 全仓 → **Commit**。
+- [x] **Step 1: RED**（boot 序列腿 + R5 负腿）。（执行记录 2026-11-20：19 fail 模块缺席形 + 负腿空树先绿 2 腿如实；bootClient 经 stub 模块系统直驱 vendor Loader。）
+- [x] **Step 2: 适配移植。**（执行记录：web-shell 14 件 + web-layout 12 件 + web-brand BrandFace 契约冻结 + web-theme FontRole 导出补全；平台表 9 词（zod/react-virtual 剔除、ui-dockkit→web-layout 替位）、必需入口集 4 词、locale/shortcuts 剥离、useSessions 结构型会话面——裁定 16 条见 ledger。）
+- [x] **Step 3: GREEN** + 全仓 → **Commit**。（21/0 包级 + 全仓 320 tests 318 pass+1 skip+0 fail。）
 
 ### Task 8: web-brand + web-mode + web-code 只读 bundle
 
