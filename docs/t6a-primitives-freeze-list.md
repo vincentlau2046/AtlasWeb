@@ -1,6 +1,6 @@
 # T6-A · web-primitives 冻结清单（Task 5 Step 1 = 审计焦点①时点）
 
-**状态：待回审 —— 超 60 原子停腿触发（plan Task 5 Step 1 预注册规则）。**
+**状态：已回审通过（Atlas-reveiw 2026-11-20）——采 B 案 + 16 dep 行升格采认 + (a) 面零原子定性认可 + 4 文件适配形采认，附 3 绑定条件（见 §8）。Task 5 步 2–4 开工。**
 基准：dsh@tag `dsh-v0.2.2-rc.2`（ddac96760b）；HEAD 09d38feb 禁用。
 落档：2026-11-20，Atlasweb-F4（plan `docs/superpowers/plans/2026-11-19-t6a-shell-port-plan.md` Task 5）。
 
@@ -9,7 +9,7 @@
 ### (a) 面：dsh@tag `client/web` + `client/ui-layout` 对 ui-primitives 实引闭包
 
 - `client/web/src/seed.ts`：`import * as UiPrimitives from '@deepseek-ai/dsh-client-ui-primitives'` —— boot 模块表**命名空间注册制**，零原子枚举。
-- `client/ui-layout`：同形（命名空间注册，无实引原子）。
+- `client/ui-layout`：**对 ui-primitives 零引用**（全 grep 零命中——回审独立直证订正，本档原"同形命名空间注册"表述系勘误级；(a)=0 结论 a fortiori 不变）。
 - 交叉验证：6 个视图侧 analog 包（ui-conversation / ui-workspace / ui-schedule / ui-trajectory / ui-tool / ui-chat）全部为**具名直接 import**，零 `UiPrimitives.*` 句柄消费。
 
 **结论：(a) 面产出 = 0 原子；原子集由 (c) 面驱动** —— 与工单 S3 行注记、plan Task 5 Step 1 前置扫描一致。审计若预期 (a) 面枚举原子，该前提被证伪（本条为焦点①的实质性发现之一）。
@@ -98,3 +98,14 @@ dsh 侧这些行落在 devDependencies（tsdown 打包吞入）；AtlasWeb 无 b
 4. B 选项的 4 文件非 verbatim 适配形采认（各文件 Adapted 头注逐条列明）。
 
 回审通过前 Task 5 Step 2–4（RED/移植/GREEN）不开工。
+
+## 8. 回审 verdict（Atlas-reveiw 2026-11-20）——采记
+
+**四项全数裁定**：B 案采认 + 16 dep 行升格采认（版本逐条对齐 dsh@tag devDeps 实测，不追新）+ (a) 面零原子定性认可（Task 8 停腿升格为唯一防外溢机制，维持不得弱化）+ B 案适配形采认（逐文件 Adapted 头注 + 逐条列明改动）。回审独立直证五点（seed.ts:18 / package.json 21 行恰合 / PathLabel.tsx:4 + file-drag-actions.ts:2 / icon-sprite.ts:7 + index.ts:27 / ui-chat AssistantMarkdown.tsx:5-6 抽验）全部吻合。
+
+**绑定条件 3 项**：
+1. 登记债 +2（数学渲染、语法高亮）显式入波档/upstream-pairing，候后续波回补（可逆通道，须可追溯）。
+2. FenceBlocks「数学 fence→code fence」转换逻辑须有判据腿（防数学内容被静默丢弃或错渲染）。
+3. 保真后果向用户显性呈现（数学块降级为代码块渲染；代码无语法高亮、plain 回退为 dsh 既有路径）。
+
+**勘误注记（已随本 fixup 落）**：ui-layout「同形命名空间注册」→「零引用」。
