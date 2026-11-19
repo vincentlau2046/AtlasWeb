@@ -15,10 +15,21 @@
     "packages/web-brand": {
       "name": "@atlasweb/web-brand",
       "version": "0.0.0",
+      "dependencies": {
+        "@atlasweb/web-theme": "*",
+      },
     },
     "packages/web-code": {
       "name": "@atlasweb/web-code",
       "version": "0.0.0",
+      "dependencies": {
+        "@atlasweb/web-connection": "*",
+        "@atlasweb/web-primitives": "*",
+        "@atlasweb/web-slots": "*",
+        "@atlasweb/web-store": "*",
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0",
+      },
     },
     "packages/web-comic": {
       "name": "@atlasweb/web-comic",

@@ -37,3 +37,12 @@ declare module '@deepseek-ai/cordis' {
     brand: BrandFace
   }
 }
+
+// ---------------------------------------------------------------------------
+// T6-A Task 8: 品牌实现出口（实现体在 ./host.ts——产品词 'Atlas'，品牌系统
+// spec 为源）。provider 形 = ctx.provide('brand', …)（web-layout/shell 消费
+// ctx.brand；boot 组装面在 layout 激活前调用 provideBrand）。
+// ---------------------------------------------------------------------------
+export { createBrandFace, provideBrand } from './brand.ts'
+export { createThemeSettingsStore, THEME_SETTINGS_STORAGE_KEY, type ThemeSettingsStore } from './host.ts'
+export type { ThemeSettingsStorage } from './storage.ts'
