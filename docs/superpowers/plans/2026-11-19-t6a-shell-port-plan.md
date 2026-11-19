@@ -128,10 +128,10 @@ Expected: FAIL（vendor/ 不存在）
 - Consumes: web-host HTTP 面（POST /auth/redeem、GET list/search/replay、GET follow SSE）
 - Produces: `connect(config): AtlasConnection`（faces 方法 + 事件流 + abort 语义）
 
-- [ ] **Step 1: RED——契约腿**：fixture 起 web-host 进程 → redeem → list/search/replay/follow 全断言；**resetRequired 重连收敛腿**（Review Focus 1）+ **切换 abort 竞态腿**（Review Focus 4）。
-- [ ] **Step 2: 重写实现**（fetch 流解析 SSE；取消经 AbortController 对齐 followPump fail-closed）。
-- [ ] **Step 3: GREEN** + 全仓。
-- [ ] **Step 4: Commit** `feat(web-connection): Atlas transport adapter — four faces + SSE + fail-closed reconnect`
+- [x] **Step 1: RED——契约腿**：fixture 起 web-host 进程 → redeem → list/search/replay/follow 全断言；**resetRequired 重连收敛腿**（Review Focus 1）+ **切换 abort 竞态腿**（Review Focus 4）。（执行记录 2026-11-20：12 腿 RED 确认——`connect is not a function` ×10，fixture setup/teardown 2 腿自成立；fixture 双 token 分离与 messageCount 撤断言两裁定见 ledger。）
+- [x] **Step 2: 重写实现**（fetch 流解析 SSE；取消经 AbortController 对齐 followPump fail-closed）。（执行记录：src/index.ts 消费侧新写 ~300 行——信封剥离/四 faces/SSE 帧解析/generation 守卫/有界重连+合成终态对；redeem 实为 GET，plan POST 系笔误，ledger 裁定。）
+- [x] **Step 3: GREEN** + 全仓。（13 pass/0 fail + 负腿 1；全仓 297 pass+1 skip+1 clean-candidate 待提交翻转。）
+- [x] **Step 4: Commit** `feat(web-connection): Atlas transport adapter — four faces + SSE + fail-closed reconnect`
 
 ### Task 7: web-shell boot kernel + web-layout（适配形）
 
@@ -186,5 +186,6 @@ Expected: FAIL（vendor/ 不存在）
 |---|---|---|---|---|
 | D-1 | 数学渲染（katex 全链：`$$…$$`/```math fence 渲染为代码块/段落文本，copy-tex 剔除） | T6-A Task 5 B 案（回审 2026-11-20，`docs/t6a-primitives-freeze-list.md` §8 条件①） | 候后续波：恢复 katex/micromark-extension-math/mdast-util-math dep 行 + FenceBlocks math 臂 + render.tsx math/inlineMath 分支（dsh@tag 原形逐字可回） | open（session 投影中数学罕见，先例判据=回审推荐理由） |
 | D-2 | 语法高亮（shiki 全链：`highlight.ts` 置 plain 桩，全部 fence 纯文本渲染——dsh 既有 unknown/loading 回退路径） | 同上 | 候后续波：恢复 shiki/@shikijs/langs dep 行 + useViewportHighlighting 视口门（ReadBlock/CodeBlock 两消费点 `false as const` 翻回原形） | open（观感优化非内容损失，plain 回退为 dsh 契约内路径） |
+| D-3 | 桌面字号快捷键（dsh theme-runtime `installFontSizeShortcuts` 注册块剥离——Ctrl+=/Ctrl+-/Ctrl+0 桌面档字号增减） | T6-A Task 4 剥离面（shortcuts 属产品服务边禁入；Atlas-reveiw Task 4 抽验候补记 → 本行 2026-11-20 转正式） | 候后续波：随 shortcuts 产品服务边开放（R5 词汇面解锁后）恢复注册块 + 快捷键位表 | open（Web 首发形无桌面快捷键语义，键位归 shell 宿主） |
 
 登记原则：两项均为**内容无损**降格（数学文本/代码逐字保留，仅渲染形态降级）；回补为纯增量（dep 行 + 分支恢复），不触动 B 案已建立的其他适配形；re-open 时须过 R1 回审（冻结清单增补）+ Task 8 停腿语义照常。
