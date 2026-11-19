@@ -12,7 +12,10 @@
 
 ## Global Constraints
 
-- 载体 pin 不动：`@atlasharness/atlascode = 0.1.124`（任一依赖行变更 = 判据格 4 bump 形，触发完整重验升级呈批）。
+- 载体 pin 不动：`@atlasharness/atlascode = 0.1.124`——**bump 触发面三分域（审计 §C 必改①）**：
+  - (a) 载体 `@atlasharness/atlascode` 依赖行任何变更 → 完整重验 + 升级呈批；
+  - (b) web-host 运行时依赖行变更 → 同 (a)；
+  - (c) 波内 UI 链/toolchain 新增依赖 → **白名单预注册**：`react ^18.2.0` / `react-dom ^18.2.0` / `vite ^6.4.3` / `@vitejs/plugin-react ^4.7.0` / `@tanstack/react-virtual` / `zod 4.6.x`——白名单内不触发；白名单外按 (a)。
 - 只读红线：无 prompt/queue/cancel/approval/写面；bundle 内禁 composer/approval 词汇（grep 负腿）。
 - 边界红线：`@atlasharness/*` 仅 web-host 可 import；UI 包 import 一律 fail-closed 测试腿。
 - dsh 产品服务子包禁入：ui-settings / shortcuts / locale / ui-dockkit / ui-session 词汇 import 断言 = 0（R5 负腿）。
@@ -108,7 +111,7 @@ Expected: FAIL（vendor/ 不存在）
 - Create: `docs/t6a-primitives-freeze-list.md`（原子清单+依据，S3 开工首步冻结——审计焦点①时点）
 - Test: 每入选原子 ≥1 腿
 
-- [ ] **Step 1: 冻结清单**——扫 Task 7/8 视图源 import 闭包，落档。**清单超 60 原子即回审。**
+- [ ] **Step 1: 冻结清单**——扫描基准（审计 §C 必改②a）：**dsh@tag `client/web` + `client/ui-layout` 对 ui-primitives 实引闭包 + S6 计划视图设计稿**（非 Task 7/8 视图源——彼时未存在，时序悖论），落档。**清单超 60 原子即回审。**
 - [ ] **Step 2: RED**（入选原子代表腿）。
 - [ ] **Step 3: 选择拷贝**（util-code-language 边局部化）。
 - [ ] **Step 4: GREEN** + 全仓 → **Commit**（清单档随片）。
@@ -148,7 +151,7 @@ Expected: FAIL（vendor/ 不存在）
 - Test: 视图腿（seeded fixtures）+ **Review Focus 2/3/5 腿**（空态/畸形事件/虚拟化有界）
 
 - [ ] **Step 1: RED——四视图腿 + Review Focus 2/3/5 腿。**
-- [ ] **Step 2: 实现视图 + 投影适配器。**
+- [ ] **Step 2: 实现视图 + 投影适配器。** **停腿（审计 §C 必改②b）**：实现中需引入冻结清单外原子 → 停片走 R1 回审，禁静默增补。
 - [ ] **Step 3: GREEN** + 全仓。
 - [ ] **Step 4: Commit** `feat(web-code): read-only Code bundle — four-face views over seeded fixtures`
 
@@ -159,7 +162,7 @@ Expected: FAIL（vendor/ 不存在）
 - Modify: 根 `package.json`（build script 接 vite）
 - Test: `apps/atlasweb/test/smoke.test.ts`（构建产物 fetch 级烟测）
 
-- [ ] **Step 1: RED——烟测腿**：vite build → serve dist → fetch /auth/redeem → 四面全通断言 + **只读红线 grep 负腿**（dist 内 composer/approval 词汇=0）。
+- [ ] **Step 1: RED——烟测腿**：vite build → serve dist → fetch /auth/redeem → 四面全通断言 + **只读红线 grep 负腿——词表预注册化（审计 §C 注记③）**：逐词列明标识符形（`composer` / `approval` / `prompt(` / `queueMessage` / `cancelSession` 等实际词表于实现时冻结入 `docs/t6a-readonly-lexicon.md`）+ 豁免表（replay 投影内合法 prompt 字样排除面逐条入表，禁裸 grep）。
 - [ ] **Step 2: 接 vite 构建 + 入口。**
 - [ ] **Step 3: GREEN** + 全仓。
 - [ ] **Step 4: Commit** `feat(app): atlasweb vite entry + four-face bundle smoke`
@@ -170,7 +173,7 @@ Expected: FAIL（vendor/ 不存在）
 - Modify: `docs/upstream-pairing.md`（T6-A 波档）、`THIRD_PARTY_NOTICES.md` 核对
 - Test: 全仓 bun test + web-host 套件核对
 
-- [ ] **Step 1: 边界交叉**——AtlasCode 仓跑 `atlasweb-kernel-boundary-scan.ts` 对 AtlasWeb 源，violation=0。
+- [ ] **Step 1: 边界交叉**——AtlasCode 仓跑 `scripts/atlasweb-kernel-boundary-scan.ts` 对 AtlasWeb 源，violation=0。
 - [ ] **Step 2: 不动面核对**——web-host 43/0；G1/G2 真值表 admitted；依赖行 bump 判定（变更行数=0 预期）。
 - [ ] **Step 3: 全仓 bun test 绿 + 只读红线终核。**
 - [ ] **Step 4: 波档落 docs + commit** `docs: T6-A wave closeout — gates, boundary, pairing record`；版本记候选 0.1.0，**tag 不自发**，e2e lane 回执 + 发布链候用户。

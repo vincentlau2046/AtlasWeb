@@ -2,7 +2,7 @@
 
 - 日期：2026-11-19。起草：Atlasweb-F4。
 - **v2 刷新（同日第二遍审视）**：新增 §0 F9 依赖闭包双面分析；S2/S5 移植形改判（verbatim → verbatim+适配边，见自决 9/10）；vendor 双面 pin 落法（自决 11，对齐 f4 审计焦点④）；zod 冲突排除（自决 12）。坐标：正式工单 = AtlasCode `docs/2026-11-19-t6-shell-port-ticket.md` @83706220；可执行计划 = `docs/superpowers/plans/2026-11-19-t6a-shell-port-plan.md`。
-- 状态：**方案稿候审计**——审计通过后双信号开工。本稿不是开工授权。
+- 状态：**v2.1（2026-11-19）**：Atlas-reveiw 审计**有修改通过**（采记 = AtlasCode 工单 §C @dccdc798）；必改①bump 三分域+白名单 / 必改②冻结清单时序 已落计划 @04093e0 后续 fixup commit；四注记（F6 40→39 / 自决 12 zod 勘误 / Task 9 词表预注册 / 扫描器全路径）已并入。**双信号放行，开工条件满足。**
 - 上位依据：`AtlasCode:docs/superpowers/plans/2026-11-13-atlas-family-platform-plan.md` Task 6（2026-11-15 §8 修订后 G1/G2 分阶段语义）；`docs/2026-11-15-s0-agreement.md` §3 里程碑 3（read-only foundation 含壳）。
 - 用户授权：2026-11-19「T6 shell 移植波启动……这个你分解好计划和方案随时可以启动了」。
 
@@ -15,7 +15,7 @@
 | F3 | THIRD_PARTY_NOTICES 与实态差 | NOTICES 称 vendored copies live under vendor/——实测 **vendor/ 为空** | 本波补齐 vendor 使 NOTICES 属实 |
 | F4 | UI 技术栈 | dsh@tag = React ^18.2.0 + cordis（vendor 全量 81 件）+ zod 4.6.6 + @tanstack/react-virtual；构建 vite ^6.4.3 + @vitejs/plugin-react ^4.7.0；`client/web` = boot kernel（静态模块表+Cordis loader+framework-free boot page+renderer handoff） | AtlasWeb 引入同版 toolchain；bun test 保留为测试运行器 |
 | F5 | 消费面就绪性 | web-host 四面 + /auth/redeem + follow SSE 全 live（G2 admitted @0.1.124） | UI 消费面就绪，无需上游动作 |
-| F6 | 体量盘点 @tag | vendor 81 / connection 35 / modules 15 / store 4 / web 20 / ui-primitives **203** / ui-renderer 24 / ui-slots 7 / ui-layout 18 / ui-theme 40 | ui-primitives 全量移植不成立（自决 3）；体量须叠加 F9 闭包维度 |
+| F6 | 体量盘点 @tag | vendor 81 / connection 35 / modules 15 / store 4 / web 20 / ui-primitives **203** / ui-renderer 24 / ui-slots 7 / ui-layout 18 / ui-theme **39**（审计 §C 注记①勘误：40→39） | ui-primitives 全量移植不成立（自决 3）；体量须叠加 F9 闭包维度 |
 | F7 | 工程接线 | 根 = npm workspaces + bun test；无根 tsconfig；web-host 直跑 src | 包级 tsconfig 按需建；bun 直跑 TS 沿用 |
 | F8 | roadmap Current phase | atlas-mainline-f4 已修正 @AtlasCode f54377e7 | 已销 |
 | **F9** | **依赖闭包双面** | **npm 运行时闭包近零**（connection→credentials+schemastery+zod；ui-theme→schemastery；其余 6 包运行时 deps=空——交叉包引用全落 devDeps/vite 打包）**vs 源码级 import 闭包实量**：store=0 / ui-slots→store(3) / ui-renderer→ui-slots(8) / modules→store+package-manifest+host-webserver(各1) / ui-primitives→util-code-language(4)+store 等 / **耦合集**：connection→typert-protocol(6)+credentials(3)+llm(2)+session+scope；ui-theme→ui-slots(6)+**ui-settings(5)**+primitives(5)+shortcuts+webserver；ui-layout→slots(5)+theme(2)+**ui-session(1)**+shortcuts+locale+brand；web→slots/primitives/store/modules(各3)+**ui-dockkit(3)** | **干净 verbatim 集 = vendor+store+ui-slots+ui-renderer(+modules 微边)；耦合集（connection/ui-theme/ui-layout/web boot）= 适配改写形**——闭包无传递爆炸（不牵入 ui-chat/ui-approval），范围可控 |
@@ -72,5 +72,5 @@ prompt/queue/cancel 输入面（F2）、审批/权限交互面（F3）、会话�
 - **自决 9（v2）**：**移植形三分法**——干净集 verbatim（vendor/store/ui-slots/ui-renderer/modules 微边）；耦合集适配改写（connection/ui-theme/ui-layout/web boot）；新写（brand/mode/code/app）。依据 = F9 源码闭包实量；每适配边入 R5 负腿。
 - **自决 10（v2）**：dsh 产品服务边（ui-settings/shortcuts/locale/ui-dockkit/ui-session）不移植——read-only 里程碑无其消费语义，以 Atlas seam 替代（brand 槽/布局宿主/槽注册），禁其词汇 import（R5）。
 - **自决 11（v2）**：vendor 双面 pin（审计焦点④）= ① dsh tag ddac96760b（移植源）② dsh vendor/README 上游 commit 表（cordis 0b96d9fd…/cosmokit 02e691c5…/schemastery cf0b7e54…/group·timer·logger-console 01b39624…/hmr ed8a7755…）verbatim 随 README 入我仓 vendor/README.md。
-- **自决 12（v2）**：zod 冲突排除——AtlasWeb 实装 4.6.7、AtlasCode ^4.5.4、dsh pin 4.6.6，同 4.x 线相容；不新增第二 zod。
+- **自决 12（v2.1 勘误，审计 §C 注记②）**：zod——AtlasWeb **现零直接依赖**（node_modules 4.6.7 = `@atlasharness` 传递面），本波随移植引入为直接依赖（pin 4.6.x，白名单内）；与 AtlasCode ^4.5.4、dsh 4.6.6 同 4.x 线相容，不新增第二 zod。
 - **报裁候选（软）**：仅 R2 若 cordis/bun 不兼容触发双轨制时升级呈批；其余波内自决闭环，审计可查。
