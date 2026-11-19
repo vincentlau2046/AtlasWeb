@@ -14,7 +14,7 @@
   ],
   "scripts": {
     "test": "bun test",
-    "build": "echo 'per-package builds; see apps/atlasweb'"
+    "build": "bun run --cwd apps/atlasweb build"
   },
   "dependencies": {
     "@atlasharness/atlascode": "0.1.124"

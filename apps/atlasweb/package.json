@@ -2,5 +2,24 @@
   "name": "@atlasweb/app",
   "private": true,
   "version": "0.0.0",
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@atlasweb/web-brand": "*",
+    "@atlasweb/web-code": "*",
+    "@atlasweb/web-connection": "*",
+    "@atlasweb/web-layout": "*",
+    "@atlasweb/web-renderer": "*",
+    "@atlasweb/web-slots": "*",
+    "@atlasweb/web-theme": "*",
+    "@deepseek-ai/cordis": "*",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^6.0.0"
+  }
 }
