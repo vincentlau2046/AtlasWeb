@@ -87,10 +87,10 @@ Expected: FAIL（vendor/ 不存在）
 - Add deps: react ^18.2.0（peer）
 - Test: 各包 test/（dsh 代表腿移植）
 
-- [ ] **Step 1: RED**（slots→store、renderer→slots 链代表腿）。
-- [ ] **Step 2: 拷贝 + 头注。**
-- [ ] **Step 3: GREEN** + 全仓。
-- [ ] **Step 4: Commit** `feat(web-slots,web-renderer): port clean-closure set`
+- [x] **Step 1: RED**（slots→store、renderer→slots 链代表腿）。
+- [x] **Step 2: 拷贝 + 头注。**
+- [x] **Step 3: GREEN** + 全仓。
+- [x] **Step 4: Commit** `feat(web-slots,web-renderer): port clean-closure set`
 
 ### Task 4: web-theme（适配形：剥离产品服务边）
 
@@ -111,11 +111,12 @@ Expected: FAIL（vendor/ 不存在）
 - Create: `docs/t6a-primitives-freeze-list.md`（原子清单+依据，S3 开工首步冻结——审计焦点①时点）
 - Test: 每入选原子 ≥1 腿
 
-- [ ] **Step 1: 冻结清单**——扫描基准（审计 §C 必改②a）：**dsh@tag `client/web` + `client/ui-layout` 对 ui-primitives 实引闭包 + S6 计划视图设计稿**（非 Task 7/8 视图源——彼时未存在，时序悖论），落档。**清单超 60 原子即回审。**
+- [x] **Step 1: 冻结清单**——扫描基准（审计 §C 必改②a）：**dsh@tag `client/web` + `client/ui-layout` 对 ui-primitives 实引闭包 + S6 计划视图设计稿**（非 Task 7/8 视图源——彼时未存在，时序悖论），落档。**清单超 60 原子即回审。**
   - **前置扫描发现（2026-11-19）**：`client/web/src/seed.ts` 对 ui-primitives 为 `import *` 命名空间注册（boot 模块表注册制）→ (a) 面不产出原子枚举，原子集由 (c) S6 设计驱动；**S5 seed 适配形 = 冻结原子命名空间 shim**（仅重导出冻结清单原子，否决全量 203 移植）——与移植形三分法一致， shim 属 S5 新码。
-- [ ] **Step 2: RED**（入选原子代表腿）。
-- [ ] **Step 3: 选择拷贝**（util-code-language 边局部化）。
-- [ ] **Step 4: GREEN** + 全仓 → **Commit**（清单档随片）。
+  - **执行记录（2026-11-20）**：清单落 `docs/t6a-primitives-freeze-list.md`（≈112 文件闭包 > 60 → stop 腿触发 → 回审）；Atlas-reveiw 裁定四项通过（B 案 + 16 dep 行 + (a) 面零原子定性 + 4 文件适配形，附 3 绑定条件），§8 采记 @dea5d85。实际移植 115 文件（闭包定点迭代较档面估算 +11 传递内部件，全部服务已批准原子，见 ledger）。
+- [x] **Step 2: RED**（入选原子代表腿）——4 测试文件（图/契约/纯函数/mdast + 绑定条件②判据腿 + 裁定4桩锁 + 裁定2 dep 行恰合负腿），先 RED 22 fail。
+- [x] **Step 3: 选择拷贝**（util-code-language 边局部化 + vendor/workspace-path、vendor/file-drag 共 3 边局部化）。
+- [x] **Step 4: GREEN** + 全仓 → **Commit**（清单档随片）。
 
 ### Task 6: web-connection 重适配（AtlasWeb 传输面）
 
@@ -178,3 +179,12 @@ Expected: FAIL（vendor/ 不存在）
 - [ ] **Step 2: 不动面核对**——web-host 43/0；G1/G2 真值表 admitted；依赖行 bump 判定（变更行数=0 预期）。
 - [ ] **Step 3: 全仓 bun test 绿 + 只读红线终核。**
 - [ ] **Step 4: 波档落 docs + commit** `docs: T6-A wave closeout — gates, boundary, pairing record`；版本记候选 0.1.0，**tag 不自发**，e2e lane 回执 + 发布链候用户。
+
+## Registered debts（T6-A 波登记债——回审绑定条件①，可逆通道）
+
+| # | Debt | 来源 | 回补通道 | 状态 |
+|---|---|---|---|---|
+| D-1 | 数学渲染（katex 全链：`$$…$$`/```math fence 渲染为代码块/段落文本，copy-tex 剔除） | T6-A Task 5 B 案（回审 2026-11-20，`docs/t6a-primitives-freeze-list.md` §8 条件①） | 候后续波：恢复 katex/micromark-extension-math/mdast-util-math dep 行 + FenceBlocks math 臂 + render.tsx math/inlineMath 分支（dsh@tag 原形逐字可回） | open（session 投影中数学罕见，先例判据=回审推荐理由） |
+| D-2 | 语法高亮（shiki 全链：`highlight.ts` 置 plain 桩，全部 fence 纯文本渲染——dsh 既有 unknown/loading 回退路径） | 同上 | 候后续波：恢复 shiki/@shikijs/langs dep 行 + useViewportHighlighting 视口门（ReadBlock/CodeBlock 两消费点 `false as const` 翻回原形） | open（观感优化非内容损失，plain 回退为 dsh 契约内路径） |
+
+登记原则：两项均为**内容无损**降格（数学文本/代码逐字保留，仅渲染形态降级）；回补为纯增量（dep 行 + 分支恢复），不触动 B 案已建立的其他适配形；re-open 时须过 R1 回审（冻结清单增补）+ Task 8 停腿语义照常。

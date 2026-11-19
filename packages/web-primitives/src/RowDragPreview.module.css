@@ -1,0 +1,13 @@
+/* Adapted from dsh@dsh-v0.2.2-rc.2 (T6-A Task 5) */
+.preview {
+  position: fixed;
+  top: 0;
+  pointer-events: none;
+}
+
+.preview > :first-child {
+  box-sizing: border-box;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+}

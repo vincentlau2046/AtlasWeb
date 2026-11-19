@@ -1,0 +1,13 @@
+/* Adapted from dsh@dsh-v0.2.2-rc.2 (T6-A Task 5) */
+.text {
+  display: block;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: var(--dsl-command-whitespace, pre);
+  overflow-wrap: anywhere;
+}
+
+.text:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: -2px;
+}
