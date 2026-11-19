@@ -152,10 +152,10 @@ Expected: FAIL（vendor/ 不存在）
 - Modify: `packages/web-code/src/`（新码：SessionList / SessionSearch / ReplayView / LiveFollow 四视图 + 投影适配器 carrier 事件→视图模型）
 - Test: 视图腿（seeded fixtures）+ **Review Focus 2/3/5 腿**（空态/畸形事件/虚拟化有界）
 
-- [ ] **Step 1: RED——四视图腿 + Review Focus 2/3/5 腿。**
-- [ ] **Step 2: 实现视图 + 投影适配器。** **停腿（审计 §C 必改②b）**：实现中需引入冻结清单外原子 → 停片走 R1 回审，禁静默增补。
-- [ ] **Step 3: GREEN** + 全仓。
-- [ ] **Step 4: Commit** `feat(web-code): read-only Code bundle — four-face views over seeded fixtures`
+- [x] **Step 1: RED——四视图腿 + Review Focus 2/3/5 腿。**
+- [x] **Step 2: 实现视图 + 投影适配器。** **停腿（审计 §C 必改②b）**：实现中需引入冻结清单外原子 → 停片走 R1 回审，禁静默增补。
+- [x] **Step 3: GREEN** + 全仓。
+- [x] **Step 4: Commit** `feat(web-code): read-only Code bundle — four-face views over seeded fixtures`
 
 ### Task 9: apps/atlasweb 构建入口 + 端到端烟测
 
