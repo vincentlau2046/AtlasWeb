@@ -112,12 +112,14 @@
         "@atlasweb/web-slots": "*",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
+        "use-sync-external-store": "^1.7.0",
       },
     },
     "packages/web-shell": {
       "name": "@atlasweb/web-shell",
       "version": "0.0.0",
       "dependencies": {
+        "@atlasweb/web-modules": "*",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
       },
