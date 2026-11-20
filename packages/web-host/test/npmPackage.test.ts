@@ -2,7 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 
-// @atlasharness/atlasweb 0.1.0 首发链判据腿（2026-11-20，用户批发布）：
+// @atlasharness/atlasweb 0.1.1 发布链判据腿（0.1.0 首发链判据形延续，
+// 2026-11-20 换锚：浏览器 redeem 面修复随版）：
 // 发布 staging script 生成可发布包——版本=收口契约（root package.json
 // version 单一事实源，apps 版本断言同值防漂移）、测的=发布的（staging
 // 从 dist 拷贝，dist 由 vite build 产出）、tarball SRI 面输出。脚本可
@@ -11,14 +12,14 @@ import { join } from 'node:path'
 const repoRoot = join(import.meta.dir, '..', '..', '..')
 const scriptPath = join(repoRoot, 'scripts', 'build-npm-package.ts')
 const stagingDir = join(repoRoot, 'build', 'npm-package')
-const tarballPath = join(repoRoot, 'build', 'atlasharness-atlasweb-0.1.0.tgz')
+const tarballPath = join(repoRoot, 'build', 'atlasharness-atlasweb-0.1.1.tgz')
 
-describe('@atlasharness/atlasweb 0.1.0 publish staging (首发链)', () => {
-  test('staging script exists and version contract holds (root = apps = 0.1.0)', () => {
+describe('@atlasharness/atlasweb 0.1.1 publish staging', () => {
+  test('staging script exists and version contract holds (root = apps = 0.1.1)', () => {
     expect(existsSync(scriptPath)).toBe(true)
     const root = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')) as { version: string }
     const app = JSON.parse(readFileSync(join(repoRoot, 'apps/atlasweb/package.json'), 'utf8')) as { version: string }
-    expect(root.version).toBe('0.1.0')
+    expect(root.version).toBe('0.1.1')
     expect(app.version).toBe(root.version)
   })
 
@@ -33,7 +34,7 @@ describe('@atlasharness/atlasweb 0.1.0 publish staging (首发链)', () => {
 
     const manifest = JSON.parse(readFileSync(join(stagingDir, 'package.json'), 'utf8')) as Record<string, unknown>
     expect(manifest.name).toBe('@atlasharness/atlasweb')
-    expect(manifest.version).toBe('0.1.0')
+    expect(manifest.version).toBe('0.1.1')
     expect(manifest.private).toBeUndefined()
     expect(manifest.files).toEqual(['dist', 'README.md'])
     expect(manifest.license).toBe('MIT')
@@ -55,15 +56,15 @@ describe('@atlasharness/atlasweb 0.1.0 publish staging (首发链)', () => {
     expect(integrity.sha512Base64).toMatch(/^sha512-[\w+/]+={0,2}$/)
   })
 
-  test('release anchor: staged tarball bytes == 0.1.0 SRI anchor (NODE_ENV 泄漏面锁)', async () => {
-    // 0.1.0 发布锚（docs/sri/v0.1.0.md）：脚本钉 NODE_ENV=production 后，
+  test('release anchor: staged tarball bytes == 0.1.1 SRI anchor (NODE_ENV 泄漏面锁)', async () => {
+    // 0.1.1 发布锚（docs/sri/v0.1.1.md）：脚本钉 NODE_ENV=production 后，
     // 本腿在 bun test 环境（ambient NODE_ENV=test）内产出的 tarball 必须
     // 与发布 tarball 字节恒等——泄漏形（mmlMhzHG / 08431d6c…）如实负锁。
     // 后续版本发布时随 docs/sri/vX.Y.Z.md 同步换锚。
     const integrity = JSON.parse(readFileSync(join(stagingDir, 'pack-integrity.json'), 'utf8')) as {
       sha256: string
     }
-    expect(integrity.sha256).toBe('0c4125a7d5cabde53aad456f7ae28d37aad1453198973538cc5d4f5b275c8e10')
+    expect(integrity.sha256).toBe('3a7b3d9c7d65312162241d3774f717ea442949382226a86bcf7c2f0678f3aed4')
   })
 
   test('--name form: second-org staging (@atlaswork/atlasweb) with own tarball+integrity', async () => {
@@ -79,12 +80,12 @@ describe('@atlasharness/atlasweb 0.1.0 publish staging (首发链)', () => {
       readFileSync(join(repoRoot, 'build', 'npm-package-atlaswork', 'package.json'), 'utf8'),
     ) as Record<string, unknown>
     expect(manifest.name).toBe('@atlaswork/atlasweb')
-    expect(manifest.version).toBe('0.1.0')
+    expect(manifest.version).toBe('0.1.1')
     const integrity = JSON.parse(
       readFileSync(join(repoRoot, 'build', 'npm-package-atlaswork', 'pack-integrity.json'), 'utf8'),
     ) as { tarball: string; sha256: string }
-    expect(integrity.tarball).toBe('atlaswork-atlasweb-0.1.0.tgz')
+    expect(integrity.tarball).toBe('atlaswork-atlasweb-0.1.1.tgz')
     expect(integrity.sha256).toMatch(/^[0-9a-f]{64}$/)
-    expect(existsSync(join(repoRoot, 'build', 'atlaswork-atlasweb-0.1.0.tgz'))).toBe(true)
+    expect(existsSync(join(repoRoot, 'build', 'atlaswork-atlasweb-0.1.1.tgz'))).toBe(true)
   })
 })

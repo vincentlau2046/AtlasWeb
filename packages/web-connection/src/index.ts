@@ -110,10 +110,17 @@ export async function connect(config: AtlasConnectionConfig): Promise<AtlasConne
         if (value.length > 0) return decodeURIComponent(value)
       }
     }
-    throw new AtlasConnectionError('redeem response carried no session cookie', 'invalidRequest', res.status)
+    // 浏览器面：set-cookie 为 forbidden response header（getSetCookie 恒空、
+    // get('set-cookie') 恒 null）——cookie jar 已由浏览器存（同源 fetch 默认
+    // 随发），credential 走 ambient cookie（headers() 零 Bearer；web-host
+    // readCredential cookie 优先序兜住）。空串 = ambient face 哨兵。
+    return ''
   }
 
   function headers(): Record<string, string> {
+    // 空 credential（浏览器 ambient cookie 面）→ 零 Bearer 头，凭据随
+    // cookie jar 同源自动携带；Node/E2E 面 Bearer 原样。
+    if (credential.length === 0) return {}
     return { authorization: `Bearer ${credential}` }
   }
 
