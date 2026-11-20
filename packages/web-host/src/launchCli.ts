@@ -6,7 +6,12 @@
  *     --port 0 \
  *     --secret <>=16B> \
  *     --scope main=/path/to/sessions [--scope work=/path2 ...] \
+ *     [--static /path/to/atlasweb-dist] \
  *     [--follow-slow-consumer-ms 30000]
+ *
+ * --static：可选 UI 静态面（如 node_modules/@atlasharness/atlasweb/dist）
+ * ——同源组装（UI + API 一端口一条命令，反代拼装缺口的收口形）。缺省 =
+ * 纯 API host（行为零变化）。
  *
  * 就绪协议：stdout 恰一行 JSON `{"ready":true,"port":<n>,"token":"<launch-token>"}`
  * ——token 为单次 launch token，客户端经 GET /auth/redeem?token= 兑换
@@ -28,6 +33,8 @@ interface CliArgs {
   scopes: Array<{ scopeId: string; storageDir: string }>
   followSlowConsumerMs?: number
   sessionTtlMs?: number
+  /** 可选：UI 静态面目录（同源组装，httpHost.staticDir）。 */
+  staticDir?: string
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -43,6 +50,7 @@ function parseArgs(argv: string[]): CliArgs {
       args.scopes.push({ scopeId: spec.slice(0, eq), storageDir: spec.slice(eq + 1) })
     } else if (a === '--follow-slow-consumer-ms') args.followSlowConsumerMs = Number(argv[++i] ?? '')
     else if (a === '--session-ttl-ms') args.sessionTtlMs = Number(argv[++i] ?? '')
+    else if (a === '--static') args.staticDir = argv[++i] ?? ''
     else throw new Error(`unknown argument: ${a}`)
   }
   if (args.secret !== undefined && args.secret.length < 16) throw new Error('--secret (if given) must be >=16 bytes')
@@ -57,6 +65,7 @@ function parseArgs(argv: string[]): CliArgs {
     throw new Error('--follow-slow-consumer-ms must be a positive finite number')
   }
   if (args.scopes.length === 0) throw new Error('at least one --scope id=dir required')
+  if (args.staticDir !== undefined && !args.staticDir.startsWith('/')) throw new Error('--static must be an absolute path')
   return args
 }
 
@@ -76,6 +85,7 @@ export async function main(argv: string[]): Promise<void> {
     sessionHost,
     auth,
     ...(args.followSlowConsumerMs !== undefined ? { followSlowConsumerMs: args.followSlowConsumerMs } : {}),
+    ...(args.staticDir !== undefined ? { staticDir: args.staticDir } : {}),
   })
   await sessionHost.start()
   await new Promise<void>(resolve => server.listen(args.port, '127.0.0.1', resolve))
