@@ -18,5 +18,8 @@
   },
   "dependencies": {
     "@atlasharness/atlascode": "0.1.125"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1"
   }
 }
