@@ -183,3 +183,24 @@ e2e lane 复跑确认：**e2ePass 54 / e2eFail 0 / 1 skip**（两轮稳定；2 f
 等终发预期中间态）。背书终发：upgrade 0.1.124 锚 `4f75289b` /
 downgrade 0.1.123 锚 `a960bb5f` / reportCommit `07a130d` / suites host 43/0 +
 e2e 54/0。
+
+# 格 I 重出（Pairing 9 载体 0.1.125 G-D 根修波，2026-11-20）
+
+**VERDICT: CLOSED**（host 腿闭合；e2e 55 跑 1 skip 0 fail）
+
+波因：W-UI-V 视觉闭环波 G-D（载体 list 面 title/messageCount 零提取根修，
+AtlasWeb 依赖 0.1.124→0.1.125 随升；用户裁定「载体根修 0.1.125」）。
+**消费面本波有位移**：web-session-runtime 出口 85,213B→88,845B
+（`7e7e6f38…`）——G-D 提取码面进 runtime；cli.js 与 0.1.124 **逐字节恒等
+（Δ=0，`4f75289b…`）**（改面全在 web 域，CLI 入口不引）。
+
+| 腿 | 结果 |
+|---|---|
+| ① 干净候选 @`530f649` | install 0.1.125 成功；runtime 锚 `7e7e6f38…` + cli.js 锚 `4f75289b…` 双验；host 57/2 + e2e 54/0/1skip（2 fail = 背书自指行，json 未换版预期中间态） |
+| ② 降级 0.1.124 | runtime 锚 `3747eb5e…`（= Pairing 8 帧恒等）+ cli.js 锚 `4f75289b…`（Δ=0 跨版本恒等）；host 56/3（3 fail = pin/背书自指行预期面；能力缺席如实显形——list 面 title 恒 null 即 0.1.124 行为） |
+| ③ 回升 0.1.125 | 锚同帧恒等幂等（`7e7e6f38…`/`4f75289b…`）；host 57/2（自指行同帧） |
+| ④ append-only | Pairing 9 依序在案 |
+
+背书终发：upgrade 0.1.125 锚 `4f75289b` / downgrade 0.1.124 锚 `4f75289b`
+（Δ=0 波对，双锚同帧为事实形态）/ reportCommit `530f649` /
+suites host 59/0 + e2e 54/0（attestation json 终版复跑确认）。
