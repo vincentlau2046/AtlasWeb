@@ -139,4 +139,20 @@ describe('@atlasharness/atlasweb 0.1.3 publish staging (A1 self-contained)', () 
     expect(code).not.toBe(0)
     expect(stdout).not.toContain('"ready"')
   })
+
+  test('A4-final: --static is rejected on the installed package entry (static root is fixed, fail-closed)', async () => {
+    // 安装包入口拒绝 --static：静态根固定包内 dist/（A1 契约）。静态层在
+    // cookie 鉴权之前服文件——用户指定根即可让未鉴权 HTTP 面服出任意本地
+    // 目录（reviewer Fix 7）。拒绝 = 非零退出 + 零就绪行 + stderr 指引。
+    const serverPath = join(stagingDir, 'server', 'atlasweb.js')
+    const proc = Bun.spawn(['node', serverPath, '--port', '0', '--static', '/tmp'], {
+      cwd: repoRoot, stdout: 'pipe', stderr: 'pipe',
+    })
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+    const code = await proc.exited
+    expect(code).not.toBe(0)
+    expect(stdout).not.toContain('"ready"')
+    expect(stderr).toContain('--static')
+  })
 })
