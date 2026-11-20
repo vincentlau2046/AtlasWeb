@@ -256,13 +256,18 @@ export class WebCodeController {
       await this.openSession(target.sessionId)
       return
     }
+    // 代数在动作发起时分配（非 await 后）：慢 A(旧) 迟到落地时其代数已被
+    // A(新) 取代，双检（会话一致 + 代数未被取代）拦下旧命中覆盖新点击。
+    const intentGeneration = ++this.targetGeneration
     if (this.currentSessionId !== target.sessionId) await this.openSession(target.sessionId)
-    // 开启竞争下不落目标：openSession 后会话已被切换则丢弃（目标绑定会话）。
+    // 开启竞争下不落目标：openSession 后会话已被切换或目标已被更新一次
+    // 点击取代则丢弃（目标绑定会话 + 发起时序）。
     if (this.currentSessionId !== target.sessionId) return
+    if (intentGeneration !== this.targetGeneration) return
     this.targetMessageSource.set({
       sessionId: target.sessionId,
       messageId: target.messageId,
-      generation: ++this.targetGeneration,
+      generation: intentGeneration,
       ...(target.offsetPx !== undefined ? { offsetPx: target.offsetPx } : {}),
     })
   }

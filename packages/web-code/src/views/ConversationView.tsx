@@ -95,7 +95,9 @@ function EmptyState({ status }: { status: ConversationModel['status'] }) {
 
 /**
  * A3: the anchor for the current reading position — the topmost row whose
- * bottom is still below the container top, plus its px gap below that top.
+ * bottom is still below the container top, plus its SIGNED px gap from the
+ * row top to the container top（负值 = 锚行顶在容器顶上方，行跨视口顶；
+ * clamp 到 0 会让长行中段刷新跳回行首——reviewer Fix 4）。
  */
 function currentAnchor(container: HTMLElement): ReadingAnchor | null {
   const containerTop = container.getBoundingClientRect().top
@@ -104,7 +106,7 @@ function currentAnchor(container: HTMLElement): ReadingAnchor | null {
     if (rect.bottom > containerTop + 1) {
       const id = row.getAttribute('data-message-id')
       if (id !== null && id.length > 0) {
-        return { messageId: id, offsetPx: Math.max(0, Math.round(rect.top - containerTop)) }
+        return { messageId: id, offsetPx: Math.round(rect.top - containerTop) }
       }
     }
   }
@@ -147,8 +149,10 @@ export function ConversationView(props: ConversationViewProps) {
     element.scrollTop = element.scrollHeight
   }, [conversation.messages, virtualized])
 
-  // A2 定位：目标未挂载 → 滚到索引 → 测高后对齐（真实元素位置修正估高
-  // 滚动）；目标不在当前模型 → A3 明示回退（A2 no-op）。
+  // A2 定位：目标未挂载 → 滚到索引 → 测高收敛对齐（每帧实测 gap，未达
+  // 目标偏移继续修正——估高/虚拟化测高多帧才能稳定，单次双 RAF 修正可被
+  // baseline 换 messages 数组取消后同 key 跳过，留下未对齐的落点）。
+  // 目标不在当前模型 → A3 明示回退（A2 no-op）。
   useEffect(() => {
     const targetId = props.targetMessageId
     if (targetId === undefined) return
@@ -158,21 +162,33 @@ export function ConversationView(props: ConversationViewProps) {
     if (index < 0) return
     const element = scrollRef.current
     if (element === null) return
-    alignedRef.current = key
     pinnedToTail.current = false
     virtualizer.scrollToIndex(index, { align: 'start' })
-    let raf = requestAnimationFrame(() => {
-      raf = requestAnimationFrame(() => {
-        // 测高后对齐：按真实元素位置修正估高滚动；offsetPx ≠0 时行顶落在
-        // 容器顶下方该偏移处（锚恢复保持阅读位）。
-        const row = element.querySelector(`[data-message-id="${CSS.escape(targetId)}"]`)
-        if (row !== null) {
-          const gap = row.getBoundingClientRect().top - element.getBoundingClientRect().top
-          element.scrollTop += gap - (props.targetOffsetPx ?? 0)
-        }
-      })
+    const targetOffset = props.targetOffsetPx ?? 0
+    const escaped = CSS.escape(targetId)
+    let frames = 0
+    let aligned = false
+    let raf = requestAnimationFrame(function step() {
+      // 双检：目标元素已被换会话卸载 → 本轮对齐作废（不写 alignedRef）。
+      const row = element.querySelector(`[data-message-id="${escaped}"]`)
+      if (row === null) return
+      const gap = row.getBoundingClientRect().top - element.getBoundingClientRect().top
+      // 收敛判据：行顶落在容器顶 + targetOffset 处（±1px）；帧预算 30 防
+      // 虚拟化抖动死循环。
+      if (Math.abs(gap - targetOffset) > 1 && frames < 30) {
+        frames += 1
+        element.scrollTop += gap - targetOffset
+        raf = requestAnimationFrame(step)
+        return
+      }
+      aligned = true
+      alignedRef.current = key
     })
-    return () => cancelAnimationFrame(raf)
+    return () => {
+      cancelAnimationFrame(raf)
+      // 未收敛即被取消（新目标/换会话打断）：清 key 允许下一次 effect 重对齐。
+      if (!aligned) alignedRef.current = ''
+    }
   }, [props.targetMessageId, props.targetGeneration, props.targetOffsetPx, conversation.messages, virtualizer])
 
   // A3 锚持久化：滚动静默 250ms 后写当前阅读位（顶层可见行 + 偏移）。

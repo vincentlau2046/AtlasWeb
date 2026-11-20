@@ -5,7 +5,8 @@
 // data-message-id 供给；URL ?session=<id> 表示当前选择，读取不等于授权
 // （服务端凭据面独立裁决）。
 
-/** A persisted reading position: anchored message + px offset below it. */
+/** A persisted reading position: anchored message + signed px offset from its
+ * top to the viewport top（负值 = 锚行顶在视口上方，行跨视口顶——保真值）。 */
 export interface ReadingAnchor {
   messageId: string
   offsetPx: number
@@ -41,7 +42,9 @@ export function readAnchor(storage: Storage | null, scopeId: string, sessionId: 
   if (parsed === null || typeof parsed !== 'object') return null
   const record = parsed as { messageId?: unknown; offsetPx?: unknown }
   if (typeof record.messageId !== 'string' || record.messageId.length === 0) return null
-  const offsetPx = typeof record.offsetPx === 'number' && Number.isFinite(record.offsetPx) && record.offsetPx >= 0
+  // 任何有限数（含负）都是合法保真偏移——锚行高于视口顶时 rect.top -
+  // containerTop 为负，clamp 到 0 会跳回行首丢行内位置。非数值降级 0。
+  const offsetPx = typeof record.offsetPx === 'number' && Number.isFinite(record.offsetPx)
     ? record.offsetPx
     : 0
   return { messageId: record.messageId, offsetPx }

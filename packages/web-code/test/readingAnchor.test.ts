@@ -46,11 +46,15 @@ describe('readingAnchor', () => {
     expect(readAnchor(storage, 'main', 's1')).toBeNull()
   })
 
-  test('a non-finite or negative offset degrades to 0, not a rejection', () => {
+  test('A4-final: a negative finite offset is preserved (anchor row straddles the viewport top); non-number degrades to 0', () => {
+    // 长行（高代码块等）中段刷新时锚行顶在视口上方 → offsetPx 为负是合法
+    // 保真值；clamp 到 0 会跳回行首丢行内位置（reviewer Fix 4）。
     const storage = stubStorage()
-    storage.setItem('atlasweb:anchor:v1:main:s1', '{"messageId":"m1","offsetPx":-5}')
-    expect(readAnchor(storage, 'main', 's1')).toEqual({ messageId: 'm1', offsetPx: 0 })
+    storage.setItem('atlasweb:anchor:v1:main:s1', '{"messageId":"m1","offsetPx":-120}')
+    expect(readAnchor(storage, 'main', 's1')).toEqual({ messageId: 'm1', offsetPx: -120 })
     storage.setItem('atlasweb:anchor:v1:main:s1', '{"messageId":"m1","offsetPx":"12"}')
+    expect(readAnchor(storage, 'main', 's1')).toEqual({ messageId: 'm1', offsetPx: 0 })
+    storage.setItem('atlasweb:anchor:v1:main:s1', '{"messageId":"m1","offsetPx":null}')
     expect(readAnchor(storage, 'main', 's1')).toEqual({ messageId: 'm1', offsetPx: 0 })
   })
 

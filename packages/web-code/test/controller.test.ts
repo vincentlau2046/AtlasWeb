@@ -220,6 +220,40 @@ describe('WebCodeController — conversation lifecycle', () => {
     expect(controller.targetMessage.getSnapshot()).toBeNull()
   })
 
+  test('A4-final: a slow openTarget A(old) cannot override a newer openTarget A(new) after both land', async () => {
+    // openTarget 竞态：目标代数若在 await 之后才分配，慢 A(旧) 后放行时会
+    // 以**更新的 generation** 发布旧目标（旧命中覆盖新点击）。修形 = 代数在
+    // 动作发起时分配，发布前双检（会话一致 + 代数未被取代）。
+    const releases: Array<() => void> = []
+    const gate = (i: number): Promise<void> => new Promise<void>(resolve => { releases[i] = resolve })
+    const { connection } = stubConnection()
+    let s1Calls = 0
+    const gated: AtlasConnection = {
+      ...connection,
+      replaySession: async (sessionId: string) => {
+        if (sessionId !== 's1') return connection.replaySession(sessionId)
+        const slot = s1Calls++
+        const done = gate(slot) // gate 句柄同步登记（首个 await 前可达）
+        const base = await connection.replaySession(sessionId)
+        await done
+        return base
+      },
+    }
+    const controller = new WebCodeController(gated)
+    const slowOld = controller.openTarget({ sessionId: 's1', messageId: 'm-old' }) // replay call #0 挂起
+    await controller.openTarget({ sessionId: 's2', messageId: 'm-b' })
+    expect(controller.targetMessage.getSnapshot()?.messageId).toBe('m-b')
+    const slowNew = controller.openTarget({ sessionId: 's1', messageId: 'm-new' }) // replay call #1 挂起
+    releases[1]!() // 新目标先放行
+    await slowNew
+    expect(controller.targetMessage.getSnapshot()?.messageId).toBe('m-new')
+    releases[0]!() // 旧目标迟到落地
+    await slowOld
+    const target = controller.targetMessage.getSnapshot()
+    expect(target?.sessionId).toBe('s1')
+    expect(target?.messageId, 'stale target must not override the newer click').toBe('m-new')
+  })
+
   test('A3: fast switching — a slow replay for A never overrides B', async () => {
     // 迟到响应覆盖守：A 的 replay 慢（挂起直到放行），B 即开即得；A 迟到
     // 落地不得改写模型/会话选择（generation 守卫锁形）。
