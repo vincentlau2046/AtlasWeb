@@ -12,6 +12,8 @@ export interface NavigationColumnViewProps {
   listError?: { code: string; message: string }
   searchResults: SearchResultVM[]
   searchQuery: string
+  /** Currently open session id (row highlight; null = none selected). */
+  selectedId?: string | null
   onOpenSession(id: string): void
   onSearch(query: string): void
 }
@@ -72,6 +74,7 @@ export function NavigationColumnView(props: NavigationColumnViewProps) {
             type='button'
             className='web-code-nav-row'
             data-session-id={session.id}
+            data-selected={session.id === props.selectedId || undefined}
             onClick={() => { props.onOpenSession(session.id) }}
           >
             <span className='web-code-nav-title'>{session.title ?? '(untitled)'}</span>

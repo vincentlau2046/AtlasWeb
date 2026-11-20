@@ -1,7 +1,7 @@
 {
   "name": "@atlasweb/app",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "scripts": {
     "build": "vite build"
@@ -13,6 +13,7 @@
     "@atlasweb/web-layout": "*",
     "@atlasweb/web-renderer": "*",
     "@atlasweb/web-slots": "*",
+    "@atlasweb/web-shell": "*",
     "@atlasweb/web-theme": "*",
     "@deepseek-ai/cordis": "*",
     "react": "^18.2.0",

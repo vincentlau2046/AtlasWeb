@@ -130,4 +130,24 @@ describe('web-code entry wiring', () => {
     expect(model.messages.length).toBeGreaterThan(0)
     expect(controller.titleState.getSnapshot().byId.s1?.retainedBy.mainView).toBe(1)
   })
+
+  test('apply with a consumed launchToken falls back to the ambient cookie face (G-C)', async () => {
+    // 重入/reload 形：单次 token 已消费（redeem 403）——apply 须仍 boot 成功，
+    // 走 ambient cookie 面（headers 零 Bearer；浏览器 cookie jar 同源随发）。
+    // 实机现形：重挂路径 connect throw → 整树崩空（2026-11-20）。
+    const calls: Array<{ url: string; headers: Record<string, string> }> = []
+    const fetchFn = (async (input: unknown, init?: RequestInit) => {
+      const url = String(input instanceof Request ? input.url : input)
+      calls.push({ url, headers: (init?.headers ?? {}) as Record<string, string> })
+      if (url.includes('/auth/redeem')) return new Response('forbidden', { status: 403 })
+      if (url.includes('/sessions?scopeId=')) return envelope({ sessions: [summary('s1', null)] })
+      throw new Error(`unexpected fetch: ${url}`)
+    }) as typeof fetch
+    const { ctx, services } = stubCtx()
+    await apply(ctx as never, { connection: { baseUrl: 'http://stub', launchToken: 'consumed-token' }, fetch: fetchFn })
+    expect(services.has('conversation')).toBe(true)
+    const list = calls.find(c => c.url.includes('/sessions?scopeId='))
+    expect(list).toBeDefined()
+    expect(list!.headers.authorization).toBeUndefined()
+  })
 })

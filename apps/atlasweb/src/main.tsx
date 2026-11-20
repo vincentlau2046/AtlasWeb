@@ -8,6 +8,11 @@
 // （web-host launchCli ready JSON 的 token 面），redeem 后剥除查询参数。
 import { Context } from '@deepseek-ai/cordis'
 import { apply as applyUiRenderer } from '@atlasweb/web-renderer/client'
+// 挂载默认面（G-A，2026-11-20 实机定谳）：html/body/#root height 链 + margin 0
+// + 字体/颜色/背景 + button font-inherit——dsh 桌面壳由 boot.ts 携带，AtlasWeb
+// web 装配链（renderer→theme→brand→layout→code）此前零引用 → 8px 边距 +
+// height 链塌 + UA 字体 = 裸文档形。
+import '@atlasweb/web-shell/base.css'
 import { provideThemeRuntime, installThemeStyles } from '@atlasweb/web-theme/client'
 import { createThemeSettingsStore, provideBrand } from '@atlasweb/web-brand'
 import { apply as applyLayout } from '@atlasweb/web-layout'
@@ -41,13 +46,17 @@ async function boot(): Promise<() => void> {
   installThemeStyles(ctx)
   provideBrand(ctx)
   await ctx.plugin({ apply: applyLayout, inject: ['slots', 'theme', 'brand'] })
+  // 连接凭据双面：URL 有 token → redeem；无 token（F5 reload / 重入，token
+  // 兑换后已剥）→ ambient cookie 面（credential ''，同源 fetch 随发 cookie；
+  // 首访无 cookie → 401 报错面呈现，fail-closed 不 crash）。
+  const launchToken = takeLaunchToken()
   await ctx.plugin({
     apply: applyCode,
     inject: ['slots'],
   }, {
     connection: {
       baseUrl: window.location.origin,
-      launchToken: takeLaunchToken(),
+      ...(launchToken !== undefined ? { launchToken } : { credential: '' }),
     },
   })
 

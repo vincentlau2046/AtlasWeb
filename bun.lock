@@ -5,18 +5,19 @@
     "": {
       "name": "atlasweb",
       "dependencies": {
-        "@atlasharness/atlascode": "0.1.124",
+        "@atlasharness/atlascode": "0.1.125",
       },
     },
     "apps/atlasweb": {
       "name": "@atlasweb/app",
-      "version": "0.0.0",
+      "version": "0.1.2",
       "dependencies": {
         "@atlasweb/web-brand": "*",
         "@atlasweb/web-code": "*",
         "@atlasweb/web-connection": "*",
         "@atlasweb/web-layout": "*",
         "@atlasweb/web-renderer": "*",
+        "@atlasweb/web-shell": "*",
         "@atlasweb/web-slots": "*",
         "@atlasweb/web-theme": "*",
         "@deepseek-ai/cordis": "*",
@@ -59,7 +60,7 @@
       "name": "@atlasweb/web-host",
       "version": "0.0.0",
       "dependencies": {
-        "@atlasharness/atlascode": "0.1.124",
+        "@atlasharness/atlascode": "0.1.125",
       },
     },
     "packages/web-layout": {
@@ -151,7 +152,7 @@
   "packages": {
     "@alcalzone/ansi-tokenize": ["@alcalzone/ansi-tokenize@0.3.1", "https://registry.npmmirror.com/@alcalzone/ansi-tokenize/-/ansi-tokenize-0.3.1.tgz", { "dependencies": { "ansi-styles": "^6.2.1", "is-fullwidth-code-point": "^5.0.0" } }, "sha512-cUD0PT0YX+rImRhfn7BfMRduP/tX/Zqt/N0dHlAyn2RlcJssCb5KsCJkhln61eh9vuJDkH8wKn3L8zJzzWXPFg=="],
 
-    "@atlasharness/atlascode": ["@atlasharness/atlascode@0.1.124", "https://registry.npmmirror.com/@atlasharness/atlascode/-/atlascode-0.1.124.tgz", { "dependencies": { "@alcalzone/ansi-tokenize": "^0.3.0", "@commander-js/extra-typings": "15", "@modelcontextprotocol/sdk": "^1.30.0", "@opentelemetry/api": "^1.9.1", "@vscode/ripgrep": "1.18.0", "ajv": "^8.20.0", "asciichart": "^1.5.25", "auto-bind": "^5.0.1", "axios": "^1.20.0", "bidi-js": "^1.0.3", "chalk": "^6.0.0", "chokidar": "^5.0.0", "cli-boxes": "^4.0.1", "cli-highlight": "^2.1.11", "code-excerpt": "^4.0.0", "diff": "9.0.0", "emoji-regex": "^10.6.0", "env-paths": "^4.0.0", "execa": "^10.0.1", "fflate": "^0.8.3", "figures": "^6.1.0", "fuse.js": "^7.5.0", "highlight.js": "^10.7.3", "https-proxy-agent": "^9.1.0", "ignore": "^7.0.8", "indent-string": "^5.0.0", "ink": "^7.1.1", "jsonc-parser": "^3.3.1", "lodash-es": "^4.18.1", "lru-cache": "^11.5.2", "marked": "^18.0.11", "openai": "^7.9.0", "p-map": "^7.0.7", "picomatch": "^4.0.7", "proper-lockfile": "^4.1.2", "qrcode": "^1.5.4", "react": "^19.2.8", "react-reconciler": "^0.33.0", "semver": "^7.6.0", "shell-quote": "1.10.0", "strip-ansi": "^7.2.0", "supports-hyperlinks": "^4.5.0", "tree-kill": "^1.2.2", "turndown": "^7.2.4", "undici": "^7.30.1", "usehooks-ts": "^3.1.1", "vscode-jsonrpc": "^9.0.2", "wrap-ansi": "^10.0.1", "ws": "^8.21.3", "xss": "^1.0.15", "yaml": "^2.9.0", "zod": "^4.5.4" }, "optionalDependencies": { "audio-capture-napi": "^0.0.1", "image-processor-napi": "^0.0.1", "modifiers-napi": "^0.0.1", "plist": "^5.0.0", "sharp": "^0.35.5", "url-handler-napi": "^0.0.1" }, "bin": { "atlas": "dist/cli.js", "atlascode": "dist/cli.js" } }, "sha512-bVZI3OVsg+7tObIime2VT4m+3tiqVCxhueOwH/4f9p5DOpfYSnoPAU2FU+X8yw3KkzxenNs1a1YY0RaZGD0VIA=="],
+    "@atlasharness/atlascode": ["@atlasharness/atlascode@0.1.125", "", { "dependencies": { "@alcalzone/ansi-tokenize": "^0.3.0", "@commander-js/extra-typings": "15", "@modelcontextprotocol/sdk": "^1.30.0", "@opentelemetry/api": "^1.9.1", "@vscode/ripgrep": "1.18.0", "ajv": "^8.20.0", "asciichart": "^1.5.25", "auto-bind": "^5.0.1", "axios": "^1.20.0", "bidi-js": "^1.0.3", "chalk": "^6.0.0", "chokidar": "^5.0.0", "cli-boxes": "^4.0.1", "cli-highlight": "^2.1.11", "code-excerpt": "^4.0.0", "diff": "9.0.0", "emoji-regex": "^10.6.0", "env-paths": "^4.0.0", "execa": "^10.0.1", "fflate": "^0.8.3", "figures": "^6.1.0", "fuse.js": "^7.5.0", "highlight.js": "^10.7.3", "https-proxy-agent": "^9.1.0", "ignore": "^7.0.8", "indent-string": "^5.0.0", "ink": "^7.1.1", "jsonc-parser": "^3.3.1", "lodash-es": "^4.18.1", "lru-cache": "^11.5.2", "marked": "^18.0.11", "openai": "^7.9.0", "p-map": "^7.0.7", "picomatch": "^4.0.7", "proper-lockfile": "^4.1.2", "qrcode": "^1.5.4", "react": "^19.2.8", "react-reconciler": "^0.33.0", "semver": "^7.6.0", "shell-quote": "1.10.0", "strip-ansi": "^7.2.0", "supports-hyperlinks": "^4.5.0", "tree-kill": "^1.2.2", "turndown": "^7.2.4", "undici": "^7.30.1", "usehooks-ts": "^3.1.1", "vscode-jsonrpc": "^9.0.2", "wrap-ansi": "^10.0.1", "ws": "^8.21.3", "xss": "^1.0.15", "yaml": "^2.9.0", "zod": "^4.5.4" }, "optionalDependencies": { "audio-capture-napi": "^0.0.1", "image-processor-napi": "^0.0.1", "modifiers-napi": "^0.0.1", "plist": "^5.0.0", "sharp": "^0.35.5", "url-handler-napi": "^0.0.1" }, "bin": { "atlas": "dist/cli.js", "atlascode": "dist/cli.js" } }, "sha512-EB6o/N5i9QqZGPROLv/h3VPlTz/JO3gr2lCVluAlMsRpRwR5F4KXa7aMGlK7564Iau/Y9lxnGVQ20pSPupMYzA=="],
 
     "@atlasweb/app": ["@atlasweb/app@workspace:apps/atlasweb"],
 

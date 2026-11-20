@@ -38,6 +38,15 @@ describe('NavigationColumnView', () => {
     expect(html).toContain('…hello world…')
   })
 
+  test('the selected session row carries data-selected (W-UI-V 选中态)', () => {
+    const html = renderToString(<NavigationColumnView {...base} selectedId='s2' />)
+    expect(html).toContain('data-session-id="s2"')
+    expect(html).toContain('data-selected="true"')
+    // 选中态恰一行：s1 行不带 data-selected。
+    const s1Row = html.slice(html.indexOf('data-session-id="s1"'), html.indexOf('data-session-id="s2"'))
+    expect(s1Row).not.toContain('data-selected')
+  })
+
   test('an error list status renders the error annotation, not a crash', () => {
     const html = renderToString(
       <NavigationColumnView {...base} sessions={[]} listStatus='error' listError={{ code: 'scopeDenied', message: 'session list denied' }} />,

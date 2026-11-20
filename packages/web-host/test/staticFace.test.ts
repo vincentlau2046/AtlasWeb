@@ -23,9 +23,9 @@ const APP_JS = "console.log('AW-JS-MARKER')\n"
 const APP_CSS = '.aw{color:red}\n'
 
 /** 原形路径请求（node:http 不做客户端归一化——穿越负锁必须打原形）。 */
-function rawGet(port: number, path: string, headers: Record<string, string> = {}): Promise<{ status: number; contentType: string; cacheControl: string; body: string }> {
+function rawGet(port: number, path: string, headers: Record<string, string> = {}, method: 'GET' | 'HEAD' = 'GET'): Promise<{ status: number; contentType: string; cacheControl: string; body: string }> {
   return new Promise((resolve, reject) => {
-    const req = httpRequest({ host: HOST, port, path, headers }, res => {
+    const req = httpRequest({ host: HOST, port, path, headers, method }, res => {
       const chunks: Buffer[] = []
       res.on('data', (c: Buffer) => chunks.push(c))
       res.on('end', () => resolve({
@@ -146,6 +146,27 @@ describe('httpHost static face (--static 同源组装)', () => {
         req.end()
       })
       expect(post.status).toBe(404)
+    } finally {
+      rmSync(staticDir, { recursive: true, force: true })
+      await ctx.stop()
+    }
+  })
+
+  test('HEAD 静态腿（W-UI-V）：与 GET 同头零体——favicon/资产探测面', async () => {
+    const staticDir = makeStaticFixture()
+    const ctx = await startServer({ staticDir })
+    try {
+      const home = await rawGet(PORT, '/', { host: `${HOST}:${PORT}` }, 'HEAD')
+      expect(home.status).toBe(200)
+      expect(home.contentType).toContain('text/html')
+      expect(home.body).toBe('')
+      expect(home.cacheControl).toContain('no-cache')
+
+      const js = await rawGet(PORT, '/assets/app-H4SH.js', { host: `${HOST}:${PORT}` }, 'HEAD')
+      expect(js.status).toBe(200)
+      expect(js.contentType).toContain('text/javascript')
+      expect(js.body).toBe('')
+      expect(js.cacheControl).toContain('immutable')
     } finally {
       rmSync(staticDir, { recursive: true, force: true })
       await ctx.stop()

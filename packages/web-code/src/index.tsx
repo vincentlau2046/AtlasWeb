@@ -5,6 +5,8 @@
 // （sidebar 单槽 = NavigationColumn；main keyed 'conversation' =
 // ConversationView）；④ 会话服务暴露（ctx.reflect.provide('conversation')）。
 // 只读红线：本包零对话输入面/审批面词汇、零写路径（会话取消等写操作不存在）。
+// W-UI-V G-B：web-code-* 视图类样式表（dsh token 词汇）——此前 0 样式命中。
+import './views/views.css'
 import type { ObservableSnapshot } from '@atlasweb/web-store'
 import type { SlotScopeAdapter } from '@atlasweb/web-slots'
 import { connect, type AtlasConnection, type AtlasConnectionConfig } from '@atlasweb/web-connection'
@@ -49,6 +51,7 @@ export interface ConversationService {
 interface NavStandardProps {
   useSessionList: <S>(sel: (snapshot: SessionListModel) => S) => S
   useSearch: <S>(sel: (snapshot: SearchModel) => S) => S
+  useSelectedSession: <S>(sel: (snapshot: string | null) => S) => S
 }
 
 /** Slot-injected standard hooks for the conversation component. */
@@ -76,7 +79,17 @@ export interface WebCodeContext {
  * @param config - connection + mode configuration.
  */
 export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise<void> {
-  const connection: AtlasConnection = await connect({ ...config.connection, fetch: config.fetch ?? config.connection.fetch })
+  const fetchImpl = config.fetch ?? config.connection.fetch
+  let connection: AtlasConnection
+  try {
+    connection = await connect({ ...config.connection, fetch: fetchImpl })
+  } catch (error) {
+    if (config.connection.launchToken === undefined) throw error
+    // 重入/reload 形：单次 launch token 已消费（redeem 非 2xx）→ ambient
+    // cookie 面续命（浏览器 cookie jar 已持有会话，headers() 零 Bearer；
+    // web-host readCredential cookie 优先序兜住）。真无凭据面原样抛。
+    connection = await connect({ ...config.connection, launchToken: undefined, credential: '', fetch: fetchImpl })
+  }
   const controller = new WebCodeController(connection)
   await controller.refreshSessions()
 
@@ -95,12 +108,13 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
     name: 'sidebar',
     id: 'web-code.nav',
     label: 'Sessions',
-    inject: (): { hooks: { sessionList: ObservableSnapshot<SessionListModel>; search: ObservableSnapshot<SearchModel> } } => ({
-      hooks: { sessionList: controller.sessionList, search: controller.searchState },
+    inject: (): { hooks: { sessionList: ObservableSnapshot<SessionListModel>; search: ObservableSnapshot<SearchModel>; selectedSession: ObservableSnapshot<string | null> } } => ({
+      hooks: { sessionList: controller.sessionList, search: controller.searchState, selectedSession: controller.sessionId },
     }),
   }, function NavigationColumn(standard: NavStandardProps) {
     const list = standard.useSessionList(snapshot => snapshot)
     const search = standard.useSearch(snapshot => snapshot)
+    const selectedId = standard.useSelectedSession(snapshot => snapshot)
     return (
       <NavigationColumnView
         sessions={list.rows}
@@ -108,6 +122,7 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
         listError={list.error}
         searchResults={search.results}
         searchQuery={search.query}
+        selectedId={selectedId}
         onOpenSession={sessionId => { void controller.openSession(sessionId) }}
         onSearch={query => { void controller.search(query) }}
       />

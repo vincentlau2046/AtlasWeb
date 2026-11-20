@@ -133,7 +133,7 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
  * 缓存：'/index.html'（含 '/' 重写）no-cache；assets/ 前缀 immutable
  * （vite hash 命名形）；其余 no-cache 保守。
  */
-function tryServeStatic(res: ServerResponse, pathname: string, staticRoot: string): boolean {
+function tryServeStatic(res: ServerResponse, pathname: string, staticRoot: string, isHead = false): boolean {
   let decoded: string
   try {
     decoded = decodeURIComponent(pathname)
@@ -177,7 +177,9 @@ function tryServeStatic(res: ServerResponse, pathname: string, staticRoot: strin
     'cache-control': immutable ? 'public, max-age=31536000, immutable' : 'no-cache',
     'x-content-type-options': 'nosniff',
   })
-  res.end(bytes)
+  // HEAD 腿（W-UI-V）：与 GET 同头（content-length 照实）零体——
+  // favicon/资产探测面。POST 等写形仍拒（非 GET/HEAD 穿透原 404 链）。
+  res.end(isHead ? undefined : bytes)
   return true
 }
 
@@ -223,7 +225,7 @@ export function createHttpHost(options: HttpHostOptions): Server {
         // 2a-bis. 静态面（auth 前机会层，仅 GET）：命中 root 内 regular file
         // → 同源服出（UI 首载 boot 路径无 cookie 可达）；未命中 → 穿透
         // 原链（auth → 路由 → 404，既有行为零漂移）。
-        if (req.method === 'GET' && staticRoot !== null && tryServeStatic(res, path, staticRoot)) {
+        if ((req.method === 'GET' || req.method === 'HEAD') && staticRoot !== null && tryServeStatic(res, path, staticRoot, req.method === 'HEAD')) {
           return
         }
         // 2b. auth（ambient cookie 或非环境型 Bearer 凭据等价验证）

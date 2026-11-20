@@ -1,7 +1,7 @@
 {
   "name": "atlasweb",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "AtlasWeb — unified Web platform for Atlas series products (AtlasCode / AtlasOffice / AtlasComic).",
   "license": "MIT",
   "type": "module",
@@ -17,6 +17,6 @@
     "build": "bun run --cwd apps/atlasweb build"
   },
   "dependencies": {
-    "@atlasharness/atlascode": "0.1.124"
+    "@atlasharness/atlascode": "0.1.125"
   }
 }

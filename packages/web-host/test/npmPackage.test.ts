@@ -2,8 +2,9 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 
-// @atlasharness/atlasweb 0.1.1 发布链判据腿（0.1.0 首发链判据形延续，
-// 2026-11-20 换锚：浏览器 redeem 面修复随版）：
+// @atlasharness/atlasweb 0.1.2 发布链判据腿（0.1.1 判据形延续，
+// 2026-11-20 换锚：W-UI-V 视觉闭环波随版——base.css/views 样式表/选中态/
+// favicon/HEAD 腿/G-A~G-C + carrier 0.1.125 依赖升）：
 // 发布 staging script 生成可发布包——版本=收口契约（root package.json
 // version 单一事实源，apps 版本断言同值防漂移）、测的=发布的（staging
 // 从 dist 拷贝，dist 由 vite build 产出）、tarball SRI 面输出。脚本可
@@ -12,14 +13,14 @@ import { join } from 'node:path'
 const repoRoot = join(import.meta.dir, '..', '..', '..')
 const scriptPath = join(repoRoot, 'scripts', 'build-npm-package.ts')
 const stagingDir = join(repoRoot, 'build', 'npm-package')
-const tarballPath = join(repoRoot, 'build', 'atlasharness-atlasweb-0.1.1.tgz')
+const tarballPath = join(repoRoot, 'build', 'atlasharness-atlasweb-0.1.2.tgz')
 
-describe('@atlasharness/atlasweb 0.1.1 publish staging', () => {
-  test('staging script exists and version contract holds (root = apps = 0.1.1)', () => {
+describe('@atlasharness/atlasweb 0.1.2 publish staging', () => {
+  test('staging script exists and version contract holds (root = apps = 0.1.2)', () => {
     expect(existsSync(scriptPath)).toBe(true)
     const root = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')) as { version: string }
     const app = JSON.parse(readFileSync(join(repoRoot, 'apps/atlasweb/package.json'), 'utf8')) as { version: string }
-    expect(root.version).toBe('0.1.1')
+    expect(root.version).toBe('0.1.2')
     expect(app.version).toBe(root.version)
   })
 
@@ -34,7 +35,7 @@ describe('@atlasharness/atlasweb 0.1.1 publish staging', () => {
 
     const manifest = JSON.parse(readFileSync(join(stagingDir, 'package.json'), 'utf8')) as Record<string, unknown>
     expect(manifest.name).toBe('@atlasharness/atlasweb')
-    expect(manifest.version).toBe('0.1.1')
+    expect(manifest.version).toBe('0.1.2')
     expect(manifest.private).toBeUndefined()
     expect(manifest.files).toEqual(['dist', 'README.md'])
     expect(manifest.license).toBe('MIT')
@@ -56,15 +57,15 @@ describe('@atlasharness/atlasweb 0.1.1 publish staging', () => {
     expect(integrity.sha512Base64).toMatch(/^sha512-[\w+/]+={0,2}$/)
   })
 
-  test('release anchor: staged tarball bytes == 0.1.1 SRI anchor (NODE_ENV 泄漏面锁)', async () => {
-    // 0.1.1 发布锚（docs/sri/v0.1.1.md）：脚本钉 NODE_ENV=production 后，
+  test('release anchor: staged tarball bytes == 0.1.2 SRI anchor (NODE_ENV 泄漏面锁)', async () => {
+    // 0.1.2 发布锚（docs/sri/v0.1.2.md）：脚本钉 NODE_ENV=production 后，
     // 本腿在 bun test 环境（ambient NODE_ENV=test）内产出的 tarball 必须
-    // 与发布 tarball 字节恒等——泄漏形（mmlMhzHG / 08431d6c…）如实负锁。
+    // 与发布 tarball 字节恒等——泄漏形如实负锁。
     // 后续版本发布时随 docs/sri/vX.Y.Z.md 同步换锚。
     const integrity = JSON.parse(readFileSync(join(stagingDir, 'pack-integrity.json'), 'utf8')) as {
       sha256: string
     }
-    expect(integrity.sha256).toBe('1cace542e2360803c9eaa63b194d6aba7376ffa34af1eca6413c50740d96667c')
+    expect(integrity.sha256).toBe('afe38f3571e5c3c40cf0579cb72cd745310a30694b364e1aa257b7a2fa9cc23f')
   })
 
   test('--name form: second-org staging (@atlaswork/atlasweb) with own tarball+integrity', async () => {
@@ -80,12 +81,12 @@ describe('@atlasharness/atlasweb 0.1.1 publish staging', () => {
       readFileSync(join(repoRoot, 'build', 'npm-package-atlaswork', 'package.json'), 'utf8'),
     ) as Record<string, unknown>
     expect(manifest.name).toBe('@atlaswork/atlasweb')
-    expect(manifest.version).toBe('0.1.1')
+    expect(manifest.version).toBe('0.1.2')
     const integrity = JSON.parse(
       readFileSync(join(repoRoot, 'build', 'npm-package-atlaswork', 'pack-integrity.json'), 'utf8'),
     ) as { tarball: string; sha256: string }
-    expect(integrity.tarball).toBe('atlaswork-atlasweb-0.1.1.tgz')
+    expect(integrity.tarball).toBe('atlaswork-atlasweb-0.1.2.tgz')
     expect(integrity.sha256).toMatch(/^[0-9a-f]{64}$/)
-    expect(existsSync(join(repoRoot, 'build', 'atlaswork-atlasweb-0.1.1.tgz'))).toBe(true)
+    expect(existsSync(join(repoRoot, 'build', 'atlaswork-atlasweb-0.1.2.tgz'))).toBe(true)
   })
 })
