@@ -46,23 +46,47 @@ async function boot(): Promise<() => void> {
   installThemeStyles(ctx)
   provideBrand(ctx)
   await ctx.plugin({ apply: applyLayout, inject: ['slots', 'theme', 'brand'] })
+
+  const container = document.getElementById('root')
+  if (container === null) throw new Error('missing #root mount element')
+
   // 连接凭据双面：URL 有 token → redeem；无 token（F5 reload / 重入，token
   // 兑换后已剥）→ ambient cookie 面（credential ''，同源 fetch 随发 cookie；
   // 首访无 cookie → 401 报错面呈现，fail-closed 不 crash）。
   const launchToken = takeLaunchToken()
-  await ctx.plugin({
-    apply: applyCode,
-    inject: ['slots'],
-  }, {
-    connection: {
-      baseUrl: window.location.origin,
-      ...(launchToken !== undefined ? { launchToken } : { credential: '' }),
-    },
-  })
+  try {
+    await ctx.plugin({
+      apply: applyCode,
+      inject: ['slots'],
+    }, {
+      connection: {
+        baseUrl: window.location.origin,
+        ...(launchToken !== undefined ? { launchToken } : { credential: '' }),
+      },
+    })
+  } catch (error) {
+    // A1 安装错误视图：兑换失败（打开链接无效/已过期且无 ambient cookie）
+    // → 恢复指引渲染，不崩空、不自动授权。与 NavigationColumnView 的
+    // 会话 401 指引同词汇族（atlasweb 重开命令）。
+    renderRecoveryNotice(container, error)
+    return () => {}
+  }
 
-  const container = document.getElementById('root')
-  if (container === null) throw new Error('missing #root mount element')
   return ctx.uiRenderer.mount(container)
+}
+
+/** 兑换失败恢复面：role='alert' 重开指引（含 atlasweb 命令词）。 */
+function renderRecoveryNotice(container: HTMLElement, error: unknown): void {
+  const detail = error instanceof Error ? error.message : String(error)
+  container.replaceChildren()
+  const alert = document.createElement('div')
+  alert.setAttribute('role', 'alert')
+  alert.setAttribute('data-recovery-notice', '')
+  alert.textContent =
+    `AtlasWeb could not open this link (${detail}). The open link is single-use and may have expired. `
+    + 'Re-run the atlasweb command (atlasweb --scope <id>=<dir>) to get a fresh open link — '
+    + 'no automatic authorization is attempted.'
+  container.appendChild(alert)
 }
 
 const dispose = await boot()

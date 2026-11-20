@@ -92,6 +92,23 @@ describe('WebCodeController — session list', () => {
     expect(titles.byId.s1).toMatchObject({ id: 's1', title: 'Session one', retainedBy: { mainView: 0 } })
     expect(titles.byId.s2?.title).toBeNull()
   })
+
+  test('A1: a session-request 401 maps to the unauthorized error face (兑换失败/会话 401 区分)', async () => {
+    // httpHost 401 形 = 非 envelope JSON（{error:'unauthorized'}）→ 适配器
+    // AtlasConnectionError('unexpected envelope kind: HTTP 401', 'httpError', 401)；
+    // 控制器把 status 401 提升为 'unauthorized' 码，视图据此渲染重开指引。
+    const connection = {
+      credential: 'c',
+      listSessions: (async () => {
+        throw Object.assign(new Error('unexpected envelope kind: HTTP 401'), { code: 'httpError', status: 401 })
+      }),
+    } as unknown as AtlasConnection
+    const controller = new WebCodeController(connection)
+    await controller.refreshSessions()
+    const list = controller.sessionList.getSnapshot()
+    expect(list.status).toBe('error')
+    expect(list.error?.code).toBe('unauthorized')
+  })
 })
 
 describe('WebCodeController — search', () => {

@@ -62,7 +62,14 @@ export function NavigationColumnView(props: NavigationColumnViewProps) {
         {props.listStatus === 'error' && (
           <div data-list-error role='alert'>
             <Pill className='web-code-error-pill'>{props.listError?.code ?? 'error'}</Pill>
-            <span>{props.listError?.message ?? 'session list failed'}</span>
+            {props.listError?.code === 'unauthorized'
+              ? (
+                <span>
+                  Session access unauthorized — your open link has expired or the session cookie is gone.
+                  Re-run the atlasweb command to get a fresh open link.
+                </span>
+              )
+              : <span>{props.listError?.message ?? 'session list failed'}</span>}
           </div>
         )}
         {props.listStatus !== 'error' && props.sessions.length === 0 && (

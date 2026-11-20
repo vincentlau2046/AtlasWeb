@@ -55,6 +55,17 @@ describe('NavigationColumnView', () => {
     expect(html).toContain('scopeDenied')
     expect(html).toContain('session list denied')
   })
+
+  test('A1: a session-request 401 renders the reopen guidance (atlasweb 重开指引, 兑换失败区分面)', () => {
+    const html = renderToString(
+      <NavigationColumnView {...base} sessions={[]} listStatus='error' listError={{ code: 'unauthorized', message: 'unexpected envelope kind: HTTP 401' }} />,
+    )
+    expect(html).toContain('data-list-error')
+    expect(html).toContain('unauthorized')
+    // 重开指引：指回 atlasweb 命令（与 boot 兑换失败恢复面同词汇族）。
+    expect(html).toContain('atlasweb')
+    expect(html).toContain('open link')
+  })
 })
 
 describe('ConversationView', () => {

@@ -22,7 +22,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 
 export interface InstalledManifest {
   name: string
@@ -234,11 +234,37 @@ export async function launchSourceHostReproduction(opts: { sessionsDir: string; 
     cwd: REPO_ROOT,
     stdio: ['ignore', 'pipe', 'pipe'],
   })
+  const ready = await consumeReadyLine(child, 'source host')
+  return {
+    baseUrl: `http://127.0.0.1:${ready.port}`,
+    redeemUrl: `http://127.0.0.1:${ready.port}/auth/redeem?token=${encodeURIComponent(ready.token)}`,
+    sessionsDir: opts.sessionsDir,
+    close(): void {
+      child.kill('SIGTERM')
+      // 优雅关闭序（launchCli 内建）；兜底强杀防残进程。
+      const timer = setTimeout(() => child.kill('SIGKILL'), 5000)
+      child.once('exit', () => clearTimeout(timer))
+      rmSync(root, { recursive: true, force: true })
+    },
+  }
+}
+
+/** A1 候选腿：启动已安装包的 .bin/atlasweb（Node 运行，PATH 剥 bun 段）。 */
+export interface InstalledBinHandle {
+  baseUrl: string
+  /** 打开链接（单次兑换）；只在内存传递，禁入日志/报告。 */
+  redeemUrl: string
+  token: string
+  close(): void
+}
+
+/** 就绪协议消费（stdout 恰一行 JSON {ready,port,token}，30s 超时）。 */
+function consumeReadyLine(child: ReturnType<typeof spawn>, label: string): Promise<{ ready: true; port: number; token: string }> {
   let stderrBuf = ''
   child.stderr?.on('data', (d: Buffer) => { stderrBuf += d.toString() })
-  const readyJson = new Promise<{ ready: true; port: number; token: string }>((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     let buf = ''
-    const timer = setTimeout(() => reject(new Error(`source host not ready in 30s; stderr: ${stderrBuf.slice(-2000)}`)), 30_000)
+    const timer = setTimeout(() => reject(new Error(`${label} not ready in 30s; stderr: ${stderrBuf.slice(-2000)}`)), 30_000)
     child.stdout?.on('data', (d: Buffer) => {
       buf += d.toString()
       const nl = buf.indexOf('\n')
@@ -251,19 +277,41 @@ export async function launchSourceHostReproduction(opts: { sessionsDir: string; 
         }
       }
     })
-    child.on('exit', code => { clearTimeout(timer); reject(new Error(`source host exited early (${code}); stderr: ${stderrBuf.slice(-2000)}`)) })
+    child.on('exit', code => { clearTimeout(timer); reject(new Error(`${label} exited early (${code}); stderr: ${stderrBuf.slice(-2000)}`)) })
   })
-  const ready = await readyJson
+}
+
+/**
+ * A1 候选腿启动器：直接运行安装包 `.bin/atlasweb`（Node shebang 直跑）。
+ * 环境硬约束：PATH 剥除一切含 bun 的段（bin 必须在 Node 下可运行，
+ * 启动 PATH 不含 Bun——plan A1 判据原文）；静态根不传（npmEntry 固定包内
+ * dist/，即被测行为本体）。
+ */
+export async function launchInstalledBin(app: InstalledApp, sessionsDir: string): Promise<InstalledBinHandle> {
+  const binPath = join(app.installDir, 'node_modules', '.bin', 'atlasweb')
+  if (!existsSync(binPath)) {
+    process.stderr.write('fatal: installed package has no .bin/atlasweb (A1+ self-contained package shape required)\n')
+    process.exit(1)
+  }
+  // node 自身目录必须留在 PATH（playwright runner 即 node；bin shebang env node）。
+  const nodeDir = dirname(process.execPath)
+  const bunlessPath = [nodeDir, ...(process.env.PATH ?? '')
+    .split(':')
+    .filter(seg => seg.length > 0 && !seg.includes('bun'))].join(':')
+  const child = spawn(binPath, ['--port', '0', '--scope', `main=${sessionsDir}`], {
+    cwd: app.installDir,
+    env: { ...process.env, PATH: bunlessPath },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  const ready = await consumeReadyLine(child, 'installed bin')
   return {
     baseUrl: `http://127.0.0.1:${ready.port}`,
     redeemUrl: `http://127.0.0.1:${ready.port}/auth/redeem?token=${encodeURIComponent(ready.token)}`,
-    sessionsDir: opts.sessionsDir,
+    token: ready.token,
     close(): void {
       child.kill('SIGTERM')
-      // 优雅关闭序（launchCli 内建）；兜底强杀防残进程。
       const timer = setTimeout(() => child.kill('SIGKILL'), 5000)
       child.once('exit', () => clearTimeout(timer))
-      rmSync(root, { recursive: true, force: true })
     },
   }
 }

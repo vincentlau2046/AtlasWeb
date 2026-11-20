@@ -73,10 +73,15 @@ class Source<T> implements ObservableSnapshot<T> {
 
 /** Extract {code,message} from an adapter error without importing its class shape. */
 function errorFace(error: unknown): { code: string; message: string } {
-  const candidate = error as { code?: unknown; message?: unknown } | null
+  const candidate = error as { code?: unknown; message?: unknown; status?: unknown } | null
   if (candidate !== null && typeof candidate === 'object') {
+    const rawCode = typeof candidate.code === 'string' ? candidate.code : 'unknown'
+    // A1 安装错误视图区分面：会话请求 401（httpHost 非 envelope 401 → 适配器
+    // 'httpError' + status 401）提升为 'unauthorized' 专用码——视图据此渲染
+    // 「重开链接」指引，与 boot 兑换失败恢复面（main.tsx）同词汇族。
+    const is401 = candidate.status === 401
     return {
-      code: typeof candidate.code === 'string' ? candidate.code : 'unknown',
+      code: is401 ? 'unauthorized' : rawCode,
       message: typeof candidate.message === 'string' ? candidate.message : String(error),
     }
   }
