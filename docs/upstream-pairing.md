@@ -176,7 +176,7 @@ Plan `docs/superpowers/plans/2026-11-19-t6a-shell-port-plan.md`（审计通过�
 | insertAdjacentHTML 处置 | web-shell apply-injections.ts（dsh 原形逐字移植）：结构化 index-injection 表解释器，`insertAdjacentHTML('beforeend', row.html)` 的源面 = boot payload 静态注入表（web-host seed 构造，编译期事实，非用户输入汇）；script 行走 textContent/script-src 行走 loadScript transport。保留，无需改造 |
 | THIRD_PARTY_NOTICES 核对 | 零新增第三方源移植面：dsh（MIT）+ vendored cordis 既有覆盖不变；本波新增 npm 运行时依赖为声明行补齐（use-sync-external-store MIT），vite/@vitejs/plugin-react 为 devDep 不入产物 |
 | 版本候选 | `apps/atlasweb` 0.1.0 候选——**tag 不自发**；e2e lane 回执 + 发布链候用户 |
-| 登记债 | D-1 katex 数学渲染 / D-2 shiki 语法高亮 / D-3 桌面字号快捷键——均 open（内容无损降格，R1 回审通道，见 plan §Registered debts） |
+| 登记债 | D-1 katex 数学渲染 / D-2 shiki 语法高亮 / D-3 桌面字号快捷键——均 open（内容无损降格，R1 回审通道，见 plan §Registered debts）；**B 案保真减损用户显性 OK（2026-11-20，「OK，同意」@AtlasCode master c35405a2 §H，绑定条件③闭环）——B 案即波终态** |
 
 ### T6-A closeout addendum — 审计 verdict 与条件兑现 (2026-11-20)
 
