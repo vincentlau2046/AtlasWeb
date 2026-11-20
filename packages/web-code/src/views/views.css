@@ -32,7 +32,9 @@
 }
 
 .web-code-nav form input:focus {
-  border-color: var(--dsw-alias-brand-primary, #4b6bfb);
+  /* 真 dsh 词汇表：brand-primary=近黑墨色；accent 蓝 = brand-primary-new-color
+     （light deepseek-500 / dark deepseek-450），fallback 兜无 shell 面。 */
+  border-color: var(--dsw-alias-brand-primary-new-colorprimary-new-color, #4b6bfb);
 }
 
 .web-code-nav-search {
@@ -79,7 +81,7 @@
 
 .web-code-nav-row[data-selected] {
   background: var(--dsw-alias-bg-layer-3, #ecedf1);
-  box-shadow: inset 2px 0 0 var(--dsw-alias-brand-primary, #4b6bfb);
+  box-shadow: inset 2px 0 0 var(--dsw-alias-brand-primary-new-colorprimary-new-color, #4b6bfb);
 }
 
 .web-code-nav-title {

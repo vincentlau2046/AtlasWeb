@@ -1,7 +1,7 @@
 {
   "name": "atlasweb",
   "private": true,
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "AtlasWeb — unified Web platform for Atlas series products (AtlasCode / AtlasOffice / AtlasComic).",
   "license": "MIT",
   "type": "module",
