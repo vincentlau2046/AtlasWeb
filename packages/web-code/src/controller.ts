@@ -36,10 +36,11 @@ export interface SearchModel {
   error?: { code: string; message: string }
 }
 
-/** A2 打开目标：会话必带；搜索命中再带消息锚。 */
+/** A2 打开目标：会话必带；搜索命中再带消息锚；A3 锚恢复再带偏移。 */
 export interface OpenTarget {
   sessionId: string
   messageId?: string
+  offsetPx?: number
 }
 
 /** A2 定位目标态：绑定目标与会话；generation 供重复命中重触发滚动。 */
@@ -47,6 +48,8 @@ export interface TargetMessageState {
   sessionId: string
   messageId: string
   generation: number
+  /** A3 对齐偏移（锚恢复保持阅读位；缺省顶对齐）。 */
+  offsetPx?: number
 }
 
 /** Structural session title state (web-layout session-face 契约形——duck-typed). */
@@ -241,6 +244,7 @@ export class WebCodeController {
       sessionId: target.sessionId,
       messageId: target.messageId,
       generation: ++this.targetGeneration,
+      ...(target.offsetPx !== undefined ? { offsetPx: target.offsetPx } : {}),
     })
   }
 

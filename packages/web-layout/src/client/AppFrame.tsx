@@ -266,6 +266,29 @@ export function AppFrame({
     actions.setRightbar(rightbarBase.current - dx)
   }, [actions])
   const productTitle = brand.productTitle
+
+  // A3（宽/窄一致工作面）：导航不可见时（窄帧自动收起/抽屉态/用户收起），
+  // 左上角常驻 'Sessions' 切换按钮——Tab 可达、Enter 打开；打开态 Esc 关闭
+  // 并把焦点还给按钮。1440 宽屏常驻导航时按钮不渲染。
+  // 焦点归还须在收起提交之后：Esc 时按钮处于卸载态（打开→收起重挂载），
+  // 事件内 focus() 落在旧节点上随卸载丢失——改由收起翻转的 effect 补焦。
+  const sessionsButtonRef = useRef<HTMLButtonElement | null>(null)
+  const refocusOnCollapse = useRef(false)
+  useEffect(() => {
+    if (sidebarCollapsed || !(drawer || narrow)) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      refocusOnCollapse.current = true
+      actions.toggleSidebar()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [sidebarCollapsed, drawer, narrow, actions])
+  useEffect(() => {
+    if (!sidebarCollapsed || !refocusOnCollapse.current) return
+    refocusOnCollapse.current = false
+    sessionsButtonRef.current?.focus()
+  }, [sidebarCollapsed])
   // The rendered template lets the grid solve the squeeze natively: the centre
   // declares its protected minimum and the right column bids up to the clamped
   // preference, so a window resize lands in the same layout pass as the frame
@@ -318,6 +341,17 @@ export function AppFrame({
       />
       {drawer && <div className={css.drawerMask} data-sidebar-mask aria-hidden="true"
         onClick={drawerOpen ? () => { actions.toggleSidebar() } : undefined} />}
+      {sidebarCollapsed && (
+        <button
+          ref={sessionsButtonRef}
+          type='button'
+          className={css.sessionsToggle}
+          data-sessions-toggle
+          onClick={() => { actions.toggleSidebar() }}
+        >
+          Sessions
+        </button>
+      )}
       <div className={css.sidebarCol}
         style={drawer ? { width: sidebarWidth } : undefined}
         {...{ inert: drawer && sidebarCollapsed ? '' : undefined }}>

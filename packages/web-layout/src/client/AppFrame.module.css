@@ -370,3 +370,24 @@
 .overlayLayer > * {
   pointer-events: auto;
 }
+
+/* A3: narrow/drawer/collapsed nav toggle — Tab-reachable, Enter opens; the
+   open state closes on Esc (AppFrame refocuses the button). Hidden whenever
+   the navigation column is visible. */
+.sessionsToggle {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 30;
+  padding: 4px 10px;
+  border: 1px solid var(--dsw-alias-border-subtle, transparent);
+  border-radius: 6px;
+  background: var(--dsw-alias-bg-base);
+  color: var(--dsw-alias-fg-primary, inherit);
+  font: inherit;
+  cursor: pointer;
+}
+
+.sessionsToggle:hover {
+  border-color: var(--dsw-alias-border-strong, currentColor);
+}

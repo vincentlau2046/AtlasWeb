@@ -15,6 +15,7 @@ import { WebCodeController,
   type SessionTitleState, type TargetMessageState } from './controller.ts'
 import type { ConversationModel } from './projection.ts'
 import { createSessionScopeAdapter } from './sessionScope.ts'
+import { readAnchor } from './readingAnchor.ts'
 import { NavigationColumnView } from './views/NavigationColumnView.tsx'
 import { ConversationView } from './views/ConversationView.tsx'
 
@@ -37,6 +38,10 @@ export interface WebCodeConfig {
   fetch?: typeof fetch
   /** Product mode id (web-mode registry); defaults to Code. */
   modeId?: string
+  /** A3 URL ?session=<id>（当前选择提示；读取不等于授权——凭据面独立裁决）。 */
+  initialSessionId?: string
+  /** A3 阅读锚持久化面（浏览器 = sessionStorage；缺省/null = 不读写）。 */
+  anchorStorage?: Storage | null
 }
 
 /** The controller service face registered as ctx 'conversation'. */
@@ -99,12 +104,43 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
   const controller = new WebCodeController(connection)
   await controller.refreshSessions()
 
+  // A3 刷新恢复：URL ?session=<id> → 打开该会话并恢复阅读锚（锚指向的
+  // 消息不存在 → 视图 anchorMissed 明示面，不跳其他会话）。scope 单一
+  // （'main'）；读取不等于授权——服务端凭据面独立裁决。
+  if (config.initialSessionId !== undefined) {
+    const anchor = readAnchor(config.anchorStorage ?? null, 'main', config.initialSessionId)
+    void controller.openTarget({
+      sessionId: config.initialSessionId,
+      ...(anchor !== null ? { messageId: anchor.messageId, offsetPx: anchor.offsetPx } : {}),
+    })
+  }
+
+  // A3 URL 同步：当前选择回写 ?session=<id>（null 选择剥除参数）。
+  if (typeof window !== 'undefined' && typeof window.history !== 'undefined') {
+    const syncSessionUrl = (sessionId: string | null): void => {
+      const url = new URL(window.location.href)
+      if (sessionId === null) url.searchParams.delete('session')
+      else url.searchParams.set('session', sessionId)
+      if (url.toString() !== window.location.href) window.history.replaceState(null, '', url.toString())
+    }
+    syncSessionUrl(controller.sessionId.getSnapshot())
+    const unsubscribeUrl = controller.sessionId.subscribe(() => {
+      syncSessionUrl(controller.sessionId.getSnapshot())
+    })
+    // cordis effect 语义：execute 立即执行，**返回值**才是 dispose——传函数
+    // 本身（不调用）。`(() => unsubscribeUrl())` 会把退订当场执行（A3 e2e
+    // 实测定谳：URL 永不回写）。
+    ctx.effect?.(() => unsubscribeUrl)
+  }
+
   // session scope 适配器（ui-session 等价件）：renderRoot 全树包
   // ScopeProvider('session-maybe')，'session' 适配器须恒安装——缺失即整树
   // SlotAssemblyError（浏览器首启现形，2026-11-20）。订阅生命周期挂 ctx.effect。
   const sessionAdapter = createSessionScopeAdapter(controller)
   ctx.slots.installScope?.('session', sessionAdapter)
-  ctx.effect?.(() => sessionAdapter.dispose())
+  // 同上：传 dispose 本身（不调用）——`(() => adapter.dispose())` 会在
+  // apply 当场注销 controller 订阅（与 URL 同步同形 bug，一并修正）。
+  ctx.effect?.(() => sessionAdapter.dispose)
 
   const rootHandle = ctx.slots.provideRoot({
     hooks: { sessions: controller.titleState },
@@ -148,11 +184,18 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
     const target = standard.useTargetMessage(snapshot => snapshot)
     // 目标与会话绑定：只把属于当前会话的定位锚传给视图（不跨会话泄露）。
     const bound = target !== null && target.sessionId === conversation.sessionId
+    // A3 锚缺席明示：恢复目标（绑定了消息）在已加载消息中不存在 → 提示
+    // 面（不静默跳位、不跳其他会话）。搜索命中目标同样适用（应不存在）。
+    const anchorMissed = bound && conversation.messages.length > 0
+      && !conversation.messages.some(message => message.id === target.messageId)
     return (
       <ConversationView
         conversation={conversation}
         targetMessageId={bound ? target.messageId : undefined}
         targetGeneration={bound ? target.generation : undefined}
+        targetOffsetPx={bound ? target.offsetPx : undefined}
+        anchorMissed={anchorMissed || undefined}
+        anchorStorage={config.anchorStorage ?? null}
       />
     )
   })

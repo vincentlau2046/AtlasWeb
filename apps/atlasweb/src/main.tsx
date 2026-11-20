@@ -54,6 +54,9 @@ async function boot(): Promise<() => void> {
   // 兑换后已剥）→ ambient cookie 面（credential ''，同源 fetch 随发 cookie；
   // 首访无 cookie → 401 报错面呈现，fail-closed 不 crash）。
   const launchToken = takeLaunchToken()
+  // A3：URL ?session=<id> = 当前选择提示（读取不等于授权）；随会话切换
+  // 由 web-code 回写。阅读锚 = sessionStorage（同标签页刷新恢复）。
+  const initialSessionId = new URL(window.location.href).searchParams.get('session') ?? undefined
   try {
     await ctx.plugin({
       apply: applyCode,
@@ -63,6 +66,8 @@ async function boot(): Promise<() => void> {
         baseUrl: window.location.origin,
         ...(launchToken !== undefined ? { launchToken } : { credential: '' }),
       },
+      ...(initialSessionId !== undefined ? { initialSessionId } : {}),
+      anchorStorage: typeof sessionStorage !== 'undefined' ? sessionStorage : null,
     })
   } catch (error) {
     // A1 安装错误视图：兑换失败（打开链接无效/已过期且无 ambient cookie）

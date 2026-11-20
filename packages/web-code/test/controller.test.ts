@@ -212,6 +212,34 @@ describe('WebCodeController — conversation lifecycle', () => {
     expect(controller.targetMessage.getSnapshot()).toBeNull()
   })
 
+  test('A3: fast switching — a slow replay for A never overrides B', async () => {
+    // 迟到响应覆盖守：A 的 replay 慢（挂起直到放行），B 即开即得；A 迟到
+    // 落地不得改写模型/会话选择（generation 守卫锁形）。
+    let releaseA: (() => void) | null = null
+    const gateA = new Promise<void>(resolve => { releaseA = resolve })
+    const { connection, handles } = stubConnection()
+    const gated: AtlasConnection = {
+      ...connection,
+      replaySession: async (sessionId: string) => {
+        const base = await connection.replaySession(sessionId)
+        if (sessionId !== 's1') return base
+        await gateA
+        return base
+      },
+    }
+    const controller = new WebCodeController(gated)
+    const slowA = controller.openSession('s1')
+    await controller.openSession('s2')
+    releaseA!()
+    await slowA
+    const model = controller.conversation.getSnapshot()
+    expect(model.sessionId).toBe('s2')
+    expect(model.messages[0]?.blocks[0]).toMatchObject({ text: 'replayed s2' })
+    // 更强语义：A 的迟到 replay 在 follow 建立前即被 generation 守卫丢弃
+    // （handles 只含 B 的一条）——无泄漏流，不止是不覆盖。
+    expect(handles).toHaveLength(1)
+  })
+
   test('close() aborts the live handle and closes the connection', async () => {
     const { connection, handles } = stubConnection()
     let closed = false

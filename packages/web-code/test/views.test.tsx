@@ -148,4 +148,18 @@ describe('ConversationView', () => {
     const m1Row = html.slice(html.indexOf('data-message-id="m1"'), html.indexOf('data-message-id="m2"'))
     expect(m1Row).not.toContain('data-search-target')
   })
+
+  test('A3: a missed anchor renders the explicit notice, not a silent fallback', () => {
+    const model = modelFromProjection({ projection: seeded })
+    const html = renderToString(<ConversationView conversation={model} anchorMissed />)
+    expect(html).toContain('data-anchor-missed')
+    expect(html).toContain('role="status"')
+    expect(html).toContain('reading position')
+  })
+
+  test('A3: no notice without a missed anchor', () => {
+    const model = modelFromProjection({ projection: seeded })
+    const html = renderToString(<ConversationView conversation={model} />)
+    expect(html).not.toContain('data-anchor-missed')
+  })
 })

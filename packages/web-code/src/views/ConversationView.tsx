@@ -10,6 +10,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { MarkdownText, Pill } from '@atlasweb/web-primitives'
 import type { MarkdownLabels } from '@atlasweb/web-primitives'
 import type { BlockVM, ConversationModel, MessageVM } from '../projection.ts'
+import { writeAnchor, type ReadingAnchor } from '../readingAnchor.ts'
 import { computeVisibleRange, REPLAY_OVERSCAN, REPLAY_WINDOW_SIZE, type WindowRange } from '../windowing.ts'
 
 /** Read-only Code view markdown chrome (English; locale edge lives with the shell host). */
@@ -27,6 +28,12 @@ export interface ConversationViewProps {
   targetMessageId?: string
   /** A2 目标代数：重复点同一命中重触发滚动。 */
   targetGeneration?: number
+  /** A3 对齐偏移：目标行顶与容器顶的期望间距 px（锚恢复 ≠0；默认顶对齐）。 */
+  targetOffsetPx?: number
+  /** A3 恢复锚不可用（消息已不存在）：明示提示面，不静默跳位。 */
+  anchorMissed?: boolean
+  /** A3 锚持久化面（sessionStorage；null/缺省 = 不写）。 */
+  anchorStorage?: Storage | null
 }
 
 /** Meta + body content of one message row. */
@@ -85,6 +92,24 @@ function EmptyState({ status }: { status: ConversationModel['status'] }) {
 }
 
 /**
+ * A3: the anchor for the current reading position — the topmost row whose
+ * bottom is still below the container top, plus its px gap below that top.
+ */
+function currentAnchor(container: HTMLElement): ReadingAnchor | null {
+  const containerTop = container.getBoundingClientRect().top
+  for (const row of container.querySelectorAll<HTMLElement>('[data-message-id]')) {
+    const rect = row.getBoundingClientRect()
+    if (rect.bottom > containerTop + 1) {
+      const id = row.getAttribute('data-message-id')
+      if (id !== null && id.length > 0) {
+        return { messageId: id, offsetPx: Math.max(0, Math.round(rect.top - containerTop)) }
+      }
+    }
+  }
+  return null
+}
+
+/**
  * The conversation main panel: header (session identity + connection status),
  * then the windowed transcript.
  * @param props - the conversation model + optional explicit window + target.
@@ -136,12 +161,32 @@ export function ConversationView(props: ConversationViewProps) {
     virtualizer.scrollToIndex(index, { align: 'start' })
     let raf = requestAnimationFrame(() => {
       raf = requestAnimationFrame(() => {
+        // 测高后对齐：按真实元素位置修正估高滚动；offsetPx ≠0 时行顶落在
+        // 容器顶下方该偏移处（锚恢复保持阅读位）。
         const row = element.querySelector(`[data-message-id="${CSS.escape(targetId)}"]`)
-        if (row !== null) row.scrollIntoView({ block: 'start' })
+        if (row !== null) {
+          const gap = row.getBoundingClientRect().top - element.getBoundingClientRect().top
+          element.scrollTop += gap - (props.targetOffsetPx ?? 0)
+        }
       })
     })
     return () => cancelAnimationFrame(raf)
-  }, [props.targetMessageId, props.targetGeneration, conversation.messages, virtualizer])
+  }, [props.targetMessageId, props.targetGeneration, props.targetOffsetPx, conversation.messages, virtualizer])
+
+  // A3 锚持久化：滚动静默 250ms 后写当前阅读位（顶层可见行 + 偏移）。
+  // scope 单一（'main'）——锚键含 scope 命名空间，多 scope 展开时由此处供给。
+  const anchorStorage = props.anchorStorage
+  useEffect(() => {
+    const sessionId = conversation.sessionId
+    if (anchorStorage === null || anchorStorage === undefined || sessionId === null || total === 0) return
+    const timer = setTimeout(() => {
+      const element = scrollRef.current
+      if (element === null) return
+      const anchor = currentAnchor(element)
+      if (anchor !== null) writeAnchor(anchorStorage, 'main', sessionId, anchor)
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [scrollTop, conversation.sessionId, total, anchorStorage])
 
   const range = props.visibleRange ?? computeVisibleRange(
     total, scrollTop, 600, 64, { size: REPLAY_WINDOW_SIZE, overscan: REPLAY_OVERSCAN },
@@ -154,6 +199,11 @@ export function ConversationView(props: ConversationViewProps) {
           <span data-conn-error role='alert'>
             {conversation.error.code}: {conversation.error.message}
           </span>
+        )}
+        {props.anchorMissed === true && (
+          <div className='web-code-anchor-missed' data-anchor-missed role='status'>
+            Saved reading position is no longer available — the session is shown from a usable position.
+          </div>
         )}
       </div>
       <div

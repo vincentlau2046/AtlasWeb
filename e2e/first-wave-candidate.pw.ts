@@ -22,9 +22,10 @@
  *
  * 报告卫生：令牌只在 runner 内存；不输出宿主绝对路径。
  */
-import { appendFileSync } from 'node:fs'
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
+import { anchorKey } from '../packages/web-code/src/readingAnchor.ts'
 import { cleanupInstalled, createSessionRoot, installTgz, launchInstalledBin, makeMessage, mkdtempSafe, type InstalledApp, type InstalledBinHandle } from './fixtures/installedApp'
 
 let installed: InstalledApp
@@ -197,6 +198,104 @@ test('append at mid-read keeps position; new message visible at tail', async ({ 
       await page.waitForTimeout(200)
     }
     await expect(page.locator('[data-message-id="m361"]')).toBeInViewport({ timeout: 10_000 })
+  } finally {
+    host.close()
+  }
+})
+
+/** A3 共用：打开长样本并滚到中段 m180，等锚写入（250ms debounce + 余量）。 */
+async function readToMidAndSettle(page: Page): Promise<void> {
+  await page.click('[data-session-id="long-0360"]')
+  await expect(page.locator('[data-message-id="m360"]')).toBeVisible({ timeout: 20_000 })
+  const transcript = page.locator('[data-transcript]')
+  for (let round = 0; round < 30 && !(await page.locator('[data-message-id="m180"]').isVisible()); round++) {
+    await transcript.hover()
+    await page.mouse.wheel(0, -2000)
+    await page.waitForTimeout(120)
+  }
+  await expect(page.locator('[data-message-id="m180"]')).toBeInViewport()
+  await page.waitForTimeout(800)
+}
+
+test('narrow sidebar opens by keyboard', async ({ page }) => {
+  const host = await openInstalledApp(page)
+  try {
+    // 窄帧（<1024 自动收起）：导航不可见 → 左上角 Sessions 按钮在场。
+    await page.setViewportSize({ width: 850, height: 800 })
+    const toggle = page.locator('[data-sessions-toggle]')
+    await expect(toggle).toBeVisible({ timeout: 10_000 })
+
+    // Tab 可达（首个可聚焦元素即按钮）+ Enter 打开。
+    await page.keyboard.press('Tab')
+    await expect(toggle).toBeFocused()
+    await page.keyboard.press('Enter')
+    const search = page.getByRole('textbox', { name: 'Search sessions' })
+    await expect(search).toBeVisible({ timeout: 10_000 })
+
+    // 可输入 + Esc 关闭并把焦点还给按钮（收起 = 帧级 data-sidebar-collapsed；
+    // 窄帧非 drawer 轨道内容不必隐藏，不在此断言输入框可见性）。
+    await search.fill('short')
+    await page.keyboard.press('Escape')
+    await expect(toggle).toBeFocused()
+    await expect(page.locator('[data-sidebar-collapsed]')).toHaveCount(1)
+
+    // 宽屏（≥1024 常驻导航）：按钮不渲染。
+    const wide = await page.context().newPage()
+    await wide.setViewportSize({ width: 1440, height: 800 })
+    await wide.goto(page.url())
+    await expect(wide.getByRole('textbox', { name: 'Search sessions' })).toBeVisible({ timeout: 20_000 })
+    await expect(wide.locator('[data-sessions-toggle]')).toHaveCount(0)
+    await wide.close()
+  } finally {
+    host.close()
+  }
+})
+
+test('refresh restores conversation and anchor', async ({ page }) => {
+  const host = await openInstalledApp(page)
+  try {
+    await readToMidAndSettle(page)
+    // URL 同步回写当前选择（reload 后为恢复入口）。
+    await expect(page).toHaveURL(/session=long-0360/, { timeout: 10_000 })
+
+    await page.reload()
+    // 恢复 = 同会话仍开 + 阅读锚处（m180）回到视口（scrollToIndex + 偏移修正）。
+    await expect(page.locator('[data-message-id="m180"]')).toBeInViewport({ timeout: 20_000 })
+    await expect(page).toHaveURL(/session=long-0360/)
+  } finally {
+    host.close()
+  }
+})
+
+test('missing anchor is explicit', async ({ page }) => {
+  const host = await openInstalledApp(page)
+  try {
+    await readToMidAndSettle(page)
+
+    // runner 侧改写样本：删 m180 行（只按 uuid 键过滤——parentUuid 引用不误伤）。
+    const jsonlPath = join(mainDir, 'long-0360.jsonl')
+    const kept = readFileSync(jsonlPath, 'utf8')
+      .split('\n')
+      .filter(line => line.length > 0 && !line.includes('"uuid":"m180"'))
+    writeFileSync(jsonlPath, `${kept.join('\n')}\n`, 'utf8')
+
+    // 同一 JS 任务内钉锚 + 重载：杀「follow poll 先改写模型 → 锚 effect 重写
+    // 成仍存在的消息 → 恢复无缺席」竞态（全文件跑偶发红的根因——轮询在
+    // rewrite→reload 窗口落地时锚被覆盖）。锚键/载荷形与 readingAnchor 契约同源。
+    await page.evaluate(key => {
+      sessionStorage.setItem(key, JSON.stringify({ messageId: 'm180', offsetPx: 0 }))
+      window.location.reload()
+    }, anchorKey('main', 'long-0360'))
+    // 锚缺席明示：提示面（role=status）在场；不静默跳位、不跳其他会话
+    // （当前会话仍渲染——尾钉 m360 在视口）。
+    const banner = page.locator('[data-anchor-missed]')
+    await expect(banner).toBeVisible({ timeout: 20_000 })
+    await expect(banner).toHaveAttribute('role', 'status')
+    await expect(banner).toContainText('reading position')
+    // 会话身份：URL 仍是目标会话 + 转录有挂载行（不钉精确滚位——尾钉后
+    // 虚拟化测高收敛可致尾部短暂出视口，属估高工件，非缺席语义）。
+    await expect(page.locator('[data-transcript] [data-message-id]').first()).toBeVisible({ timeout: 10_000 })
+    await expect(page).toHaveURL(/session=long-0360/)
   } finally {
     host.close()
   }
