@@ -11,15 +11,17 @@
 - 审批证据生产者 = AtlasWeb host `approvals.ts`——合同 §5「服务端」在本拓扑的落点（浏览器连接终结在 host，kernel 不可见浏览器身份）。`web-code` UI/客户端层**不自造不覆盖**，`actorId` 展示值取自 `approval.settled` 事件；`approvals.ts` 是**纯证据落档件，不自建裁判**（状态机/待批超时归上游 kernel，300s 上游计时不变），证据记录须与 kernel 决策结果可互证（E5 互证腿保留）。（审计必改：生产者角色钉死）
 - B 验收一律在隔离临时工作区做真实引擎回合；`@atlaswork` 面装候选包；截图/HTTP 200/测试数不可替代。
 
-## §0 回填锚表（Main 定名后由 F4 填写，逐项带 commit）
+## §0 回填锚表（2026-11-21 按[呈批书批复](../../../../AtlasCode/docs/2026-11-21-execution-outlet-wave-lockface-brief.md) @a62925c0 回填三项；余两项候落码产出）
 
 | 锚 | 值 | 来源 |
 |---|---|---|
-| 执行出口导出名 | 待 Main 定名 | AtlasCode 实施波 lock-face |
-| 执行出口包路径 | 待定名 | 同上 |
-| 首个承载版本 | 待排波 | 同上 |
-| set-once 守卫实码 commit 锚 | 待落码 | 锁定登记挂账① |
-| 单例面穷尽清单 | 待交 | 实施波验收件② |
+| 执行出口导出名 | `createExecutionOutlet`（+ `ExecutionOutlet`/`ExecutionOutletOptions`；信封/事件型自 `webExecutionV0`） | 呈批书 §1，批复 @a62925c0 |
+| 执行出口包路径 | `@atlasharness/atlascode/web-session-runtime`（同 subpath 扩具名导出；单载体裁定） | 同上 |
+| 首个承载版本 | `0.1.126`候（以排波段 L 为准） | 同上 |
+| set-once 守卫实码 commit 锚 | 待落码（S1 产出） | 锁定登记挂账① |
+| 单例面穷尽清单 | 待交（S4 前验收件②） | 实施波验收件② |
+
+**批复条件对 upstream.ts 的影响（§1 执行时必读）**：① 符号级 import 扫描——「除 upstream.ts 外零执行出口 import」按具名符号判（`createExecutionOutlet`/`ExecutionOutlet`/`webExecutionV0` 型），不按 module specifier（同 subpath 后与只读面 import 串同形）；② E1 增格——出口构造零引擎引导（懒触达），probe=off 下构造+任一命令 = 拒且内核零痕迹；③ 上限执法归上游 kernel，AtlasWeb 零重复执法（原文不变）。
 
 ## §1 共享地基（随 B1 首切片落，不单独成段）
 

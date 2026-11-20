@@ -12,7 +12,7 @@
 
 | 维度 | 只读面（现状，不回退） | 执行面（本文新增） |
 |---|---|---|
-| 载体 | `./web-session-runtime`，GET 四路由，ambient cookie | 新受支持出口，独立于只读包导出 |
+| 载体 | `./web-session-runtime`，GET 四路由，ambient cookie | 新受支持出口，独立于只读包导出。**实施修订（2026-11-21 批复 @AtlasCode a62925c0）**：落点为同 subpath `./web-session-runtime` 扩具名导出 `createExecutionOutlet`（0.1.126候）——「独立」实质 = 独立受支持具名导出面 + 独立能力/授权生命周期（§0 定名权授 Main）；伴生条件：符号级 import 扫描、出口构造零引擎引导、只读消费面零漂移回归 |
 | 授权 | scope 级读授权（一次性打开链接） | **逐工作区显式授权**，由 host 服务端记录；不从读授权推导，不从 `--scope` 自动获得 |
 | 生命周期 | host 启动即存在 | 能力默认关闭；`capability.probe` 显式探测；关闭时 UI 不渲染写控件，只读面照常 |
 | 失效 | 打开链接过期 → 401 | 工作区授权可独立吊销；吊销即时生效于新命令，运行中回合按 §4 取消规则收口 |
@@ -91,7 +91,7 @@ queue:    每 session 有界 FIFO（默认深度 16，B0 锁定值）
 
 ## §7 实例隔离（预盘点登记② → 硬约束）
 
-- **组合根恰一次注入**：产品模式对 `setKernelBootstrapState` / `setSessionEnv` 恰注入一次；**二次注入 = 硬错（非覆盖）**。B0 实现须使现 API 的静默覆盖语义在该模式下不可达（AtlasCode Main 确认：set-once 守卫收敛于 injection.ts 单文件 + 调用点审计 + 判别单测，`resetKernelBootstrapStateForTests` 显式测试缝保留；组合根恰一次须对 `src/atlascode/compose.ts` headless 装配点与 TUI factory 双车道均成立）。
+- **组合根恰一次注入**：产品模式对 `setKernelBootstrapState` / `setSessionEnv` 恰注入一次；**二次注入 = 硬错（非覆盖）**。B0 实现须使现 API 的静默覆盖语义在该模式下不可达（AtlasCode Main 确认：set-once 守卫收敛于 injection.ts 单文件 + 调用点审计 + 判别单测，`resetKernelBootstrapStateForTests` 显式测试缝保留；组合根恰一次须对 `src/atlascode/compose.ts` headless 装配点与 TUI factory 双车道均成立）。**实施修订（2026-11-21 批复 @AtlasCode a62925c0）**：① `setSessionEnv`（env.ts:82-85 Partial spread 合并）为独立模块，同守卫原语经 env.ts 一行接缝消费，守卫逻辑仍单文件；② arming 形 = 双车道组合根调 `armKernelInjectionGuard()`，armed 后对已注入槽二次 set = throw，测试/probe 车道不 armed 语义零变更；③ arming 单向不可逆——armed 态下 reset 缝调用 = 硬错（不采「解除记账」形），判别单测增腿 (f)。
 - **单例面穷尽清单（实施波验收件）**：kernel 状态面其余模块级单例的穷尽审计由 AtlasCode 实施波交单，作为 B0 锁定后的验收件之一；清单未交或审计有漏 = 该实施波不收口。
 - 同进程双工作区反证：两个独立临时工作区交错执行，各自读写只落对应工作区，会话历史、权限上下文、取消域互不串染（取消甲不伤乙）；禁用改全局 CWD/env 的方式凑隔离。
 - 可测判据 E7：上述交错场景全部通过且无静默状态顶替；隔离不成立即 B0 不锁。
