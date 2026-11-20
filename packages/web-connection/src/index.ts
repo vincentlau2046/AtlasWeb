@@ -191,7 +191,6 @@ export async function connect(config: AtlasConnectionConfig): Promise<AtlasConne
     ]
 
     async function* eventStream(): AsyncGenerator<AtlasSessionEvent> {
-      const decoder = new TextDecoder()
       try {
         let reconnectsUsed = 0
         let resetStreak = 0
@@ -225,9 +224,14 @@ export async function connect(config: AtlasConnectionConfig): Promise<AtlasConne
             continue
           }
           setState('live')
-          // outcome：closed=干净终态；reset=resetRequired 后无 cursor 立即重开；
-          // abnormal=流异常终止（有界重连）。
-          let outcome: 'closed' | 'reset' | 'abnormal' = 'abnormal'
+          // 每响应新建 decoder：TextDecoder stream 态残留上一响应末尾的截断
+          // 多字节序列（如 E4 BD），污染下一响应首帧解析（U+FFFD 前缀破坏
+          // 'data:' 识别 → replacement 帧被静默丢弃）。
+          const decoder = new TextDecoder()
+          // outcome：closed=干净终态；abnormal=流异常终止/连续 reset（有界重连）。
+          // resetRequired 不再是独立 outcome：cursor 已清，流就此终止走正常
+          // 预算重连（无 cursor 重开 = 收敛到新 baseline）。
+          let outcome: 'closed' | 'abnormal' = 'abnormal'
           let readError: unknown
           try {
             const reader = res.body.getReader()
@@ -258,19 +262,26 @@ export async function connect(config: AtlasConnectionConfig): Promise<AtlasConne
                   continue
                 }
                 if (event.kind === 'closed') {
+                  if (aborted) return
                   yield event
                   outcome = 'closed'
                   closedArrived = true
                   break
                 }
                 if (event.kind === 'resetRequired') {
+                  if (aborted) return
                   yield event
                   // 协议收敛形：清 cursor；同流续读（新 baseline 直达消费者）。
-                  // 连续 resetRequired（无正常事件间隔）视作异常断流形计入重连
-                  // 预算（防 server 环路）；流若就此终止则走无 cursor 重开。
+                  // 连续 resetRequired（无正常事件间隔）= 异常断流形：退出读环
+                  // 走预算重连（防 server 环路打穿成无退避死循环）；单次 reset
+                  // 后流终止也走预算重连（无 cursor 重开），不保留免预算形。
                   cursor = undefined
                   resetStreak += 1
-                  outcome = resetStreak > 1 ? 'abnormal' : 'reset'
+                  if (resetStreak > 1) {
+                    outcome = 'abnormal'
+                    closedArrived = true
+                    break
+                  }
                   continue
                 }
                 resetStreak = 0
@@ -294,7 +305,6 @@ export async function connect(config: AtlasConnectionConfig): Promise<AtlasConne
           }
           if (aborted) return
           if (outcome === 'closed') return
-          if (outcome === 'reset') continue // 立即重开（无退避）
           if (reconnectsUsed >= maxReconnects) {
             yield* terminal(readError !== undefined ? `follow read failed: ${String(readError)}` : 'follow stream ended without closed')
             return

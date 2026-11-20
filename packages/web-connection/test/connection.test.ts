@@ -345,6 +345,128 @@ describe('web-connection: Atlas transport adapter (fixture host)', () => {
     await conn.close()
   })
 
+  test('A4-final: per-response decoder — 前一响应末尾的截断 UTF-8 不得污染下一响应首帧', async () => {
+    // 响应 1 以截断的多字节序列收尾（'你' = E4 BD A0 只给前 2 字节）——
+    // decoder 跨响应复用时残留字节进入响应 2 的解码：U+FFFD 前缀与
+    // 'data:' 同行 → startsWith('data:') 不中 → replacement 帧被跳过
+    // （有效 cursor 续接不保证重发 baseline → 读者停在旧内容上）。
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const enc = new TextEncoder()
+        controller.enqueue(enc.encode('data: {"kind":"baseline","cursor":"c1"}\n\n'))
+        controller.enqueue(new Uint8Array([0xe4, 0xbd]))
+        controller.close()
+      },
+    })
+    let calls = 0
+    const injectedFetch = (async (input: string | URL | Request): Promise<Response> => {
+      calls += 1
+      if (String(input).includes('/follow')) {
+        if (calls === 1) return new Response(body, { headers: { 'content-type': 'text/event-stream' } })
+        return new Response(
+          'data: {"kind":"replacement","cursor":"c2"}\n\ndata: {"kind":"closed"}\n\n',
+          { headers: { 'content-type': 'text/event-stream' } },
+        )
+      }
+      return fetch(input)
+    }) as typeof fetch
+    const { connect } = await loadAdapter()
+    const conn = await connect({ baseUrl: 'http://127.0.0.1:1', credential: 'unused', fetch: injectedFetch, backoffMs: 5 })
+    const handle = conn.follow('s')
+    const kinds = await collectKinds(handle, 5, 5000)
+    expect(kinds).toEqual(['baseline', 'replacement', 'closed'])
+    expect(calls).toBe(2)
+    await conn.close()
+  })
+
+  test('A4-final: 开放流内连续 resetRequired 即走有界重连（预算在 EOF 前生效）', async () => {
+    // 服务端收敛形失效（reset 后不跟新 baseline 反而再 reset）：同流环路
+    // 必须在 EOF 前退出——旧形只写 outcome 继续解析，预算等 EOF 才执行。
+    let calls = 0
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(
+          'data: {"kind":"baseline","cursor":"c1"}\n\n'
+          + 'data: {"kind":"resetRequired","reason":"expired"}\n\n'
+          + 'data: {"kind":"resetRequired","reason":"expired again"}\n\n',
+        ))
+        // 流保持开放——旧形在此悬挂（read 永不就绪，预算永不触达）。
+      },
+    })
+    const injectedFetch = (async (input: string | URL | Request): Promise<Response> => {
+      calls += 1
+      if (String(input).includes('/follow')) {
+        if (calls === 1) return new Response(body, { headers: { 'content-type': 'text/event-stream' } })
+        return new Response('data: {"kind":"baseline","cursor":"c2"}\n\ndata: {"kind":"closed"}\n\n', { headers: { 'content-type': 'text/event-stream' } })
+      }
+      return fetch(input)
+    }) as typeof fetch
+    const { connect } = await loadAdapter()
+    const conn = await connect({ baseUrl: 'http://127.0.0.1:1', credential: 'unused', fetch: injectedFetch, backoffMs: 5 })
+    const handle = conn.follow('s')
+    const kinds = await collectKinds(handle, 6, 3000)
+    expect(kinds).toEqual(['baseline', 'resetRequired', 'resetRequired', 'baseline', 'closed'])
+    expect(calls).toBe(2)
+    await conn.close()
+  })
+
+  test('A4-final: resetRequired→baseline→EOF 走预算重连（正常帧不得保留免预算重开形）', async () => {
+    // 一次合法同流重建（reset→新 baseline）后流 EOF：这是普通异常断流，
+    // 必须受重连预算约束——旧形 outcome='reset' 未被正常帧清除，EOF 后
+    // 免预算重开（可被 baseline→EOF 服务端行为打穿成无退避死循环）。
+    let calls = 0
+    const injectedFetch = (async (input: string | URL | Request): Promise<Response> => {
+      calls += 1
+      if (String(input).includes('/follow')) {
+        return new Response(
+          'data: {"kind":"baseline","cursor":"c-stale"}\n\n'
+          + 'data: {"kind":"resetRequired","reason":"expired"}\n\n'
+          + 'data: {"kind":"baseline","cursor":"c-fresh"}\n\n',
+          { headers: { 'content-type': 'text/event-stream' } },
+        )
+      }
+      return fetch(input)
+    }) as typeof fetch
+    const { connect } = await loadAdapter()
+    const conn = await connect({ baseUrl: 'http://127.0.0.1:1', credential: 'unused', fetch: injectedFetch, backoffMs: 5, maxReconnects: 0 })
+    const handle = conn.follow('s')
+    const kinds = await collectKinds(handle, 6, 3000)
+    expect(kinds).toEqual(['baseline', 'resetRequired', 'baseline', 'error', 'closed'])
+    expect(calls).toBe(1)
+    await conn.close()
+  })
+
+  test('A4-final: abort 后缓冲帧不再交付（done 后 iterator 恒终态）', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(
+          'data: {"kind":"baseline","cursor":"c1"}\n\ndata: {"kind":"resetRequired","reason":"x"}\n\n',
+        ))
+      },
+    })
+    const injectedFetch = (async (input: string | URL | Request): Promise<Response> => {
+      if (String(input).includes('/follow')) {
+        return new Response(body, { headers: { 'content-type': 'text/event-stream' } })
+      }
+      return fetch(input)
+    }) as typeof fetch
+    const { connect } = await loadAdapter()
+    const conn = await connect({ baseUrl: 'http://127.0.0.1:1', credential: 'unused', fetch: injectedFetch, backoffMs: 5 })
+    const handle = conn.follow('s')
+    // 同一 iterator：collectKinds 内部新建 generator 会绕开悬挂点（每次
+    // [Symbol.asyncIterator]() 都是新 generator，aborted 顶检即终态）。
+    const iter = handle.events[Symbol.asyncIterator]()
+    const first = await nextEvent(iter, 3000)
+    expect(first !== 'timeout' && first !== 'done' && first.kind).toBe('baseline')
+    handle.abort()
+    await handle.done
+    // abort + done 之后：同 chunk 已缓冲的 resetRequired 不得再交付
+    // （旧形 resetRequired 分支 yield 前无 aborted 检查 → 悬挂恢复后漏帧）。
+    const stale = await nextEvent(iter, 500)
+    expect(stale === 'done' || stale === 'timeout').toBe(true)
+    await conn.close()
+  })
+
   test('no credential source → connect rejects', async () => {
     const { connect } = await loadAdapter()
     await expect(connect({ baseUrl: fixture.base })).rejects.toThrow(/credential/)
