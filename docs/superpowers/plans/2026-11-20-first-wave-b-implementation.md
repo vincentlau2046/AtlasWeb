@@ -8,7 +8,7 @@
 
 - 执行能力默认关闭（合同 §1/E1）；UI 无写控件当 probe=off。AtlasWeb 侧永不直写 JSONL、不解析 CLI 文本、不私引源码；一切执行经受支持出口。
 - AtlasCode 执行出口的导出名/包路径/版本由 Main 定名后回填本附表 §0 锚表；回填前 `packages/web-host/src/execution/upstream.ts` 是唯一接触点，其余文件不得 import 具体导出名。
-- 审批证据七字段中 AtlasWeb 只透传展示，`actorId`/`timestamp` 由上游服务端产（合同 §5）；AtlasWeb 任何层不得自造或覆盖。
+- 审批证据生产者 = AtlasWeb host `approvals.ts`——合同 §5「服务端」在本拓扑的落点（浏览器连接终结在 host，kernel 不可见浏览器身份）。`web-code` UI/客户端层**不自造不覆盖**，`actorId` 展示值取自 `approval.settled` 事件；`approvals.ts` 是**纯证据落档件，不自建裁判**（状态机/待批超时归上游 kernel，300s 上游计时不变），证据记录须与 kernel 决策结果可互证（E5 互证腿保留）。（审计必改：生产者角色钉死）
 - B 验收一律在隔离临时工作区做真实引擎回合；`@atlaswork` 面装候选包；截图/HTTP 200/测试数不可替代。
 
 ## §0 回填锚表（Main 定名后由 F4 填写，逐项带 commit）
@@ -36,6 +36,7 @@ executionRoutes: POST 路由挂 auth fence 之后；bind 三元组 host 侧先�
 ```
 
 - [ ] RED：probe=off 时 POST 全 404/403 且引擎零启动（E1 腿）；bind 不匹配事件被丢弃计错误边界（E2 腿）；重复注入 workspaceAuth/upstream 构造即硬错（§7 组合根恰一次的 AtlasWeb 侧对表腿）。
+- [ ] 合同 §8 上限（队列 16 / 2 MiB / 缓冲 10 000 / 并发 1）随状态机归**上游执法**；AtlasWeb 零重复执法，仅呈现边界错误码。GREEN 增自动执法腿：除 `upstream.ts` 外全仓零执行出口 import 扫描（与 kernel 边界扫描同法），单接触点纪律可机器判而非靠自觉。（审计登记 c）
 - [ ] 静态根 `dist/` 不新增任何执行面资源；server 代码不经静态 HTTP 服出（A1 既有规则回归腿）。
 
 ## §2 B1 — 授权工作区、真实回合、回读
@@ -51,12 +52,13 @@ executionRoutes: POST 路由挂 auth fence 之后；bind 三元组 host 侧先�
 
 ## §3 B2 — 排队、取消、审批
 
-**文件**：新增 `packages/web-host/src/execution/{queue,approvals}.ts`（approvals 落 §5 证据记录：七字段、服务端产 actor/time、不含正文/令牌/待批内容、保留=turn 同生命周期、仅服务端证据查询可读）；新增 `packages/web-code/src/views/{QueueList,ApprovalCard}.tsx`；修改 `executionController.ts`（cancel/remove/decide 三命令）、`Composer.tsx`（排队区/待批卡挂载）；对应 host/web-code 测试与 e2e 腿。
+**文件**：新增 `packages/web-host/src/execution/{queue,approvals}.ts`（approvals = 纯证据落档件，见全局约束生产者角色钉死：七字段、actor/time 由 host 从已认证连接身份/服务端时钟产、不含正文/令牌/待批内容、保留=turn 同生命周期、仅服务端证据查询可读、与 kernel 决策结果可互证）；新增 `packages/web-code/src/views/{QueueList,ApprovalCard}.tsx`；修改 `executionController.ts`（cancel/remove/decide 三命令）、`Composer.tsx`（排队区/待批卡挂载）；对应 host/web-code 测试与 e2e 腿。
 
 **接口**：`queue.remove(turnId)` 走合同 `cancelled` 终态语义（不静默移除）；`approval.decide(approvalId, decision)` bind 必含 turnId 且 ≡ 归属 turn（必改②）；待批超时由上游服务端计时（默认 300s），AtlasWeb 只展示 `expired`。
 
-- [ ] RED `queue cancel and approval have kernel effects`：FIFO 入队、重复提交只执行一次、等待取消不启动、运行取消恰一个终态；批准后隔离文件实际改变、拒绝/过期/跨域零改变（磁盘证据）；关闭浏览器不伪造取消，重连查结局（E4/E5 全腿）。
+- [ ] RED `queue cancel and approval have kernel effects`：FIFO 入队、重复提交只执行一次、等待取消不启动、运行取消恰一个终态；**双客户端竞态（一取消一审批）只产出一个一致终态（E4，审计登记 a）**；批准后隔离文件实际改变、拒绝/过期/跨域零改变（磁盘证据）；关闭浏览器不伪造取消，重连查结局（E4/E5 全腿）。
 - [ ] RED `decide binding is turn-exact`：同 session 跨 turn decide 被拒且零副作用（E5 新腿）。
+- [ ] RED `execution stream reconnects exactly once`：断线期间完成的回合与审批，重连后各恰好一次可见（执行流侧 E6 腿，cursor 语义复用 A4 形态；审计登记 b）。
 - [ ] 实现：queue/approval 状态机在上游内核（AtlasWeb 不自建裁判）；UI 状态只读投影 + 命令发送；`actorId` 展示值取自 `approval.settled` 事件，不本地推断。
 - [ ] GREEN：单测同 §2 + `--grep 'queue cancel|decide binding'`。
 
