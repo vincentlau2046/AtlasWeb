@@ -176,8 +176,11 @@ export function AppFrame({
 
   const narrow = viewport < SIDEBAR_AUTO_COLLAPSE
   const windowsTitlebar = document.documentElement.hasAttribute('data-windows-titlebar')
-  const drawer = viewport < SIDEBAR_DRAWER_BREAKPOINT && !windowsTitlebar
-  const centeredSidebar = foldedLandscape && viewport >= SIDEBAR_DRAWER_BREAKPOINT
+  // 抽屉阈值 = 窄帧阈值（reviewer Fix 6）：768–1024 区间若只扩 grid track，
+  // 收起态是 56px rail 但内容不 inert——搜索框/行按钮仍在 Tab 序列（焦点
+  // 逃逸到不可见交互面）。<1024 一律真 drawer：遮罩 + 收起即 inert。
+  const drawer = narrow && !windowsTitlebar
+  const centeredSidebar = foldedLandscape && !drawer && viewport >= SIDEBAR_DRAWER_BREAKPOINT
   const sidebarCollapsed = narrow ? !layoutInfo.narrowExpanded : layoutInfo.sidebar === 0
   const drawerOpen = drawer && !sidebarCollapsed
   // Entering drawer mode from a collapsed rail hides the backing immediately.
