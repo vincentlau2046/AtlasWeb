@@ -26,27 +26,30 @@
 ```text
 Envelope  = { v: 0, id: string, ts: number, type: string,
               bind: { workspaceId, sessionId, turnId? }, payload: object }
+Event     = Envelope + { cursor: string }   // 每事件流单调递增；cursor 是事件唯一排序权威
 Error     = { code: string, message: string, retryable: boolean }
 ```
+
+信任级声明（审计登记 a）：`ts` 仅信息性，**绝不参与结算、排序或授权**——排序以 cursor 为唯一权威，身份以 bind 三元组为准，时钟一律服务端。
 
 命令（host 校验 bind 三元组后方可入机）：
 
 | type | payload 关键字段 | 语义 |
 |---|---|---|
-| `capability.probe` | — | 返回执行能力开/关与受支持 v |
+| `capability.probe` | — | 返回执行能力开/关与受支持 v；仅需连接级鉴权（ambient cookie），泄露面仅 on/off + 受支持 v，不触工作区数据（审计登记 b） |
 | `turn.submit` | `submitId`(客户端 UUID), `text` | 提交一轮；幂等键见 §3 |
 | `turn.cancel` | `targetTurnId` | 真取消（§4） |
-| `queue.remove` | `targetTurnId` | 仅 queued 项可移除 |
-| `approval.decide` | `approvalId`, `decision: approved\|denied` | 唯一有效决定（§5） |
+| `queue.remove` | `targetTurnId` | 语义 ≡ `turn.cancel(queued)`：落 `cancelled` 终态（审计必改 1），不静默移除 |
+| `approval.decide` | `approvalId`, `decision: approved\|denied` | 唯一有效决定（§5）；bind 须含 turnId 且 ≡ 该 approval.requested 归属 turn（审计必改 2） |
 | `follow.resume` | `cursor?` | 执行事件流恢复（§6） |
 
-事件：`turn.accepted / turn.started / turn.delta / turn.completed / turn.failed / turn.cancelled / approval.requested / approval.settled / queue.updated / error`。全部携带与命令相同的 bind；**结算只认三元组精确匹配**，bind 不匹配的事件一律丢弃并计错误边界。未知 `v` 或 `type` 拒绝并回 `error`。
+事件：`turn.accepted / turn.started / turn.delta / turn.completed / turn.failed / turn.cancelled / approval.requested / approval.settled / queue.updated / error`。全部携带与命令相同的 bind 与单调 `cursor`；**结算只认三元组精确匹配**，bind 不匹配的事件一律丢弃并计错误边界；乱序/重复 cursor 按流序锚去重，不按 `ts`。未知 `v` 或 `type` 拒绝并回 `error`。
 
 可测判据 E2：伪造 bind（跨 session/跨 workspace 的事件或结算）必须被丢弃且不产生任何持久化副作用。
 
 ## §3 提交幂等
 
-- `turn.submit` 以 `(workspaceId, sessionId, submitId)` 为幂等键；同键重试返回原结算（accepted/终态），**绝不二次执行**。
+- `turn.submit` 以 `(workspaceId, sessionId, submitId)` 为幂等键；同键重试返回原结算（**accepted / rejected / 终态均算原结算**——审计登记 c：队列满被拒的提交同键重试返回原拒绝，不是二次尝试），**绝不二次执行**。
 - 与现 `structuredIO.ts:393–425` 的差别是硬要求：其仅按 requestId 单键去重、无 session 绑定与 actor 审计，**不得**作为本协议的实现替身或结算路径。
 
 可测判据 E3：同 submitId 连发 N 次恰一个回合落盘；不同 submitId 同文本是两个独立回合。
@@ -59,7 +62,7 @@ approval: requested → approved | denied | expired | voidedByCancel        （�
 queue:    每 session 有界 FIFO（默认深度 16，B0 锁定值）
 ```
 
-- `turn.cancel`：queued → 直接移除（不启动）；running → 触发引擎真中止，终态 `cancelled` 恰一个；已终态 → 边界错误（不改变状态）。
+- `turn.cancel`：queued → 落终态 `cancelled`（不启动）；`queue.remove` 与之同语义（审计必改 1），不存在无终态的静默移除；running → 触发引擎真中止，终态 `cancelled` 恰一个；已终态 → 边界错误（不改变状态）。
 - **断开 ≠ 取消**：连接断开不迁移任何 turn/approval 状态；失联期间的待批操作保持 pending，**绝不自动放行**，按待批超时（默认 300s，锁定值）走 `expired`。
 - 取消须以引擎侧证据为准（回合记录中止、待批操作未执行），UI 标签不可替代；关闭浏览器不能伪造取消，重连可查结局。
 
@@ -74,15 +77,16 @@ queue:    每 session 有界 FIFO（默认深度 16，B0 锁定值）
 ```
 
 - `actorId` 由服务端从已认证连接身份解析、`timestamp` 由服务端时钟产生；**客户端自报主体或时间不得覆盖**，携带即拒绝。
+- **decide 归属绑定（审计必改 2）**：`approval.decide` 的 bind 必须含 `turnId` 且 ≡ 该 `approval.requested` 事件归属的 turn；同 session 跨 turn 的 decide（旧 turn bind 配新 approvalId 或反向）一律拒绝且零副作用。
 - 不记录正文、令牌、待批内容；保留期限 = 与该 turn 记录同生命周期，访问仅经服务端证据查询（bind 限定本 workspace），客户端无写入路径。
 - 拒绝/过期/取消/跨域的待批操作**不执行业务动作**；重复决定不产生第二个有效决定；设置不得静默变更批准策略（策略变更须显式受支持设置，B0 只锁默认拒绝）。
 
-可测判据 E5：跨工作区审批被拒且零文件变更；过期/拒绝路径磁盘无痕；同一 approvalId 二次 decide 边界错误；证据记录可与磁盘实际结果互证。
+可测判据 E5：跨工作区审批被拒且零文件变更；过期/拒绝路径磁盘无痕；同一 approvalId 二次 decide 边界错误；**同 session 跨 turn decide 被拒且零副作用（审计必改 2）**；证据记录可与磁盘实际结果互证。
 
 ## §6 刷新恢复与游标
 
 - 执行状态（回合、队列、审批）由内核/host 持久化；浏览器刷新后以持久化回读为准，SSE 仅是视图。
-- `follow.resume` 沿用只读面 cursor 语义：按当前订阅代采信事件、断线增量恰一次补齐、过期游标 → 基线替换（不合并旧事件）。
+- `follow.resume` 沿用只读面 cursor 语义：按当前订阅代采信事件、断线增量恰一次补齐、过期游标 → 基线替换（不合并旧事件）。cursor 取自事件信封的 `cursor` 字段（§2，事件唯一排序权威）；溢出重同步同样以 cursor 锚定，不按 `ts`。
 - 可测判据 E6：刷新后 pending 审批仍在且不丢；断线期间完成的回合与审批重连后各恰好一次可见。
 
 ## §7 实例隔离（预盘点登记② → 硬约束）
