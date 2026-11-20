@@ -65,4 +65,26 @@ describe('@atlasharness/atlasweb 0.1.0 publish staging (首发链)', () => {
     }
     expect(integrity.sha256).toBe('0c4125a7d5cabde53aad456f7ae28d37aad1453198973538cc5d4f5b275c8e10')
   })
+
+  test('--name form: second-org staging (@atlaswork/atlasweb) with own tarball+integrity', async () => {
+    // 双组织发布（version-contract.md）：同版本同内容第二 scope。
+    const proc = Bun.spawn(['bun', 'run', scriptPath, '--name', '@atlaswork/atlasweb'], {
+      cwd: repoRoot, stdout: 'pipe', stderr: 'pipe',
+    })
+    const stderr = await new Response(proc.stderr).text()
+    const exitCode = await proc.exited
+    expect(stderr.toLowerCase()).not.toContain('error')
+    expect(exitCode).toBe(0)
+    const manifest = JSON.parse(
+      readFileSync(join(repoRoot, 'build', 'npm-package-atlaswork', 'package.json'), 'utf8'),
+    ) as Record<string, unknown>
+    expect(manifest.name).toBe('@atlaswork/atlasweb')
+    expect(manifest.version).toBe('0.1.0')
+    const integrity = JSON.parse(
+      readFileSync(join(repoRoot, 'build', 'npm-package-atlaswork', 'pack-integrity.json'), 'utf8'),
+    ) as { tarball: string; sha256: string }
+    expect(integrity.tarball).toBe('atlaswork-atlasweb-0.1.0.tgz')
+    expect(integrity.sha256).toMatch(/^[0-9a-f]{64}$/)
+    expect(existsSync(join(repoRoot, 'build', 'atlaswork-atlasweb-0.1.0.tgz'))).toBe(true)
+  })
 })

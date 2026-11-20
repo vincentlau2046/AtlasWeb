@@ -16,7 +16,25 @@ import { join } from 'node:path'
 const repoRoot = new URL('..', import.meta.url).pathname.replace(/\/$/, '')
 const appDir = join(repoRoot, 'apps', 'atlasweb')
 const buildDir = join(repoRoot, 'build')
-const stagingDir = join(buildDir, 'npm-package')
+
+// --name 可选（双组织发布，version-contract.md）：默认 @atlasharness/atlasweb；
+// 第二组织 @atlaswork/atlasweb。staging 目录按 scope 分离，tarball 名随包名。
+const args = process.argv.slice(2)
+let publishName = '@atlasharness/atlasweb'
+for (let i = 0; i < args.length; i += 1) {
+  if (args[i] === '--name') {
+    publishName = args[++i] ?? ''
+  } else {
+    console.error(`unknown argument: ${args[i]}`)
+    process.exit(2)
+  }
+}
+if (!/^@[a-z0-9-]+\/[a-z0-9-]+$/.test(publishName)) {
+  console.error(`invalid --name: ${publishName}`)
+  process.exit(2)
+}
+const scopeSuffix = publishName.split('/')[0].slice(1)
+const stagingDir = scopeSuffix === 'atlasharness' ? join(buildDir, 'npm-package') : join(buildDir, `npm-package-${scopeSuffix}`)
 
 const rootManifest = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')) as {
   name: string
@@ -57,7 +75,6 @@ if (!existsSync(join(appDir, 'dist', 'index.html'))) {
 rmSync(stagingDir, { recursive: true, force: true })
 mkdirSync(stagingDir, { recursive: true })
 
-const publishName = '@atlasharness/atlasweb'
 const publishedManifest = {
   name: publishName,
   version,
