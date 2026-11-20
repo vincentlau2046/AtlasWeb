@@ -114,6 +114,12 @@ export async function connect(config: AtlasConnectionConfig): Promise<AtlasConne
     // get('set-cookie') 恒 null）——cookie jar 已由浏览器存（同源 fetch 默认
     // 随发），credential 走 ambient cookie（headers() 零 Bearer；web-host
     // readCredential cookie 优先序兜住）。空串 = ambient face 哨兵。
+    // raw 非空但解析未命中（Node 面 cookie 名漂移形）→ fail-closed 即时
+    // throw，不静默落 ambient（Node 无 jar → 全部请求延迟 401 零报错形；
+    // Atlas-reveiw hardening，2026-11-20）。
+    if (raw.length > 0) {
+      throw new AtlasConnectionError('redeem response set-cookie carried no atlas_session cookie', 'invalidRequest')
+    }
     return ''
   }
 

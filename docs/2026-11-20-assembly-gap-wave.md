@@ -11,7 +11,7 @@ session API 分属两面，需手工反向代理拼装同源。用户裁定「�
 | 项 | 内容 | 判据 |
 |---|---|---|
 | web-host 静态面（9d8aef2） | `--static <dir>`：auth 前机会层（GET 命中即服，未命中穿透原链零漂移）；fail-closed 校验链（绝对路径+目录 throw / 段级 traversal 拒含 `%2f` 编码形 / lstat regular（目录 403 零列举、symlink 403 逃逸面清零）/ realpath containment / 64MiB cap / 显式 content-type + nosniff / `/assets/` immutable · `/` no-cache） | `staticFace.test.ts` 7 腿 |
-| web-connection 浏览器 redeem 面（209bfd6） | set-cookie 为浏览器 forbidden response header（getSetCookie 恒空）→ 空串哨兵 = ambient cookie 面（同源 fetch 默认随发；readCredential cookie 优先序兜住；headers() 零 Bearer）；Node/E2E Bearer 面零漂移 | `browserRedeem.test.ts` 双面腿 |
+| web-connection 浏览器 redeem 面（209bfd6） | set-cookie 为浏览器 forbidden response header（getSetCookie 恒空）→ 空串哨兵 = ambient cookie 面（同源 fetch 默认随发；readCredential cookie 优先序兜住；headers() 零 Bearer）；Node/E2E Bearer 面零漂移；raw 非空解析未命中（cookie 名漂移形）→ fail-closed throw（审计 hardening 随版收口） | `browserRedeem.test.ts` 三腿 |
 | web-code session scope 适配器（本波收口提交） | ui-session 等价件（dsh ui-session 刻意未移植但其 renderer 契约仍在：renderRoot 全树包 `ScopeProvider('session-maybe')`，缺适配器即整树 SlotAssemblyError——浏览器首启现形）：`createSessionScopeAdapter`（current blank/selected + bindingSource + renderArea + adoption 恒稳 cordis Context）+ `controller.sessionId` 源 + apply() `installScope('session')` 接线（effect 挂订阅生命周期） | `sessionScope.test.ts` 6 腿 |
 | favicon 404（小债登记） | dist 无 favicon；修复须动 index.html 字节 → 随下一版，勿在锚版本内混入 | — |
 
@@ -30,10 +30,21 @@ cookie、traversal 403、fence 403 全绿。
 ## 发布面
 
 - 版本契约默认 lane 0.1.0 → 0.1.1（root package.json 单源）。
-- staging 版本内重跑两次换锚：`3a7b3d9c…` → `7fa811e3…`（②修复随版）；锚腿
-  `npmPackage.test.ts` 第 4 条 = `docs/sri/v0.1.1.md` 终值。
-- tag v0.1.1 + GitHub push（commit+tag）；**npm publish（双组织）待用户 OK，未执行**。
+- staging 版本内重跑四次换锚：`3a7b3d9c…` → `7fa811e3…`（②修复随版）→ `f8345727…`
+  （README serving 段随版进 tarball）→ `1cace542…`（审计 hardening 随版）；锚腿
+  `npmPackage.test.ts` 第 4 条 = `docs/sri/v0.1.1.md` 终值；连续两次 staging 哈希
+  恒等证 pack 确定性（无 mtime/gzip 时戳漂移面）。
+- tag v0.1.1 + GitHub push（commit+tag，hardening 后终态重推）；**npm publish
+  （双组织）待用户 OK，未执行**。
 - @atlaswork 镜像面：同 tgz 同源仅 name 字段差（atlaswork-mirror-publishing 纪律）。
+
+## 审计（Atlas-reveiw，2026-11-20）
+
+**通过**——三焦点全裁毕：① 静态面机会层插入点正确（fence 先于静态面 = 无跨源静态
+泄漏；穿透零漂移有专腿）；② ambient cookie 哨兵双面契约成立、无新增暴露面 + 1
+hardening 注记（Node 面 raw 非空解析未命中静默落 ambient → 已随版收口为 fail-closed
+throw，第四换锚即此）；③ session 适配器 adoption 三语义与 dsh scoped-slots 原文
+逐条对齐。
 
 ## 波前审视与裁定
 

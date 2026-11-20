@@ -64,7 +64,7 @@ describe('@atlasharness/atlasweb 0.1.1 publish staging', () => {
     const integrity = JSON.parse(readFileSync(join(stagingDir, 'pack-integrity.json'), 'utf8')) as {
       sha256: string
     }
-    expect(integrity.sha256).toBe('f8345727cabd063ab96d185bf8f8828ec678674850f027e06ef1a0f6d6d5ca45')
+    expect(integrity.sha256).toBe('1cace542e2360803c9eaa63b194d6aba7376ffa34af1eca6413c50740d96667c')
   })
 
   test('--name form: second-org staging (@atlaswork/atlasweb) with own tarball+integrity', async () => {

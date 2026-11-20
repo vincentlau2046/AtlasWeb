@@ -8,7 +8,7 @@ import { describe, expect, test } from 'bun:test'
 //     存（同源 fetch 默认随发），credential 走 ambient cookie（headers 零
 //     Bearer；web-host readCredential cookie 优先序兜住）；
 //   Node/E2E 面（getSetCookie 可读）：Bearer 原样（零行为漂移）。
-import { connect } from '../src/index'
+import { connect, AtlasConnectionError } from '../src/index'
 
 interface CapturedCall { url: string; headers: Record<string, string> }
 
@@ -62,5 +62,21 @@ describe('web-connection 浏览器 redeem 面（ambient cookie 双面契约）',
     await conn.listSessions({ scopeId: 'main' })
     const listCall = calls.find(c => c.url.includes('/sessions') && !c.url.includes('search'))
     expect(listCall!.headers.authorization).toBe('Bearer nodecookie.sig')
+  })
+
+  test('Node 形（getSetCookie 可读但 cookie 名解析未命中）：redeem throw（fail-closed，不静默落 ambient）', async () => {
+    // 审计 hardening（Atlas-reveiw 2026-11-20）：raw 非空但无 atlas_session
+    // （版本间 cookie 名漂移形）——旧形 fall-through return '' → Node 无
+    // cookie jar，静默切 ambient 全部请求延迟 401（redeem 零报错）。
+    // fail-closed：此形必须即时报错；仅「浏览器形不可读」（raw 空）走哨兵。
+    const { fetchFn } = nodeLikeFetch(LIST_PAYLOAD, 'other_session=xyz; HttpOnly; Path=/')
+    let thrown: unknown
+    try {
+      await connect({ baseUrl: 'http://127.0.0.1:1', launchToken: 'tok-drift', fetch: fetchFn })
+    } catch (error) {
+      thrown = error
+    }
+    expect(thrown).toBeInstanceOf(AtlasConnectionError)
+    expect((thrown as AtlasConnectionError).code).toBe('invalidRequest')
   })
 })
