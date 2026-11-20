@@ -200,3 +200,12 @@ Plan `docs/superpowers/plans/2026-11-19-t6a-shell-port-plan.md`（审计通过�
 | 定因入册 | ambient `NODE_ENV`（bun test=test）经 vite define 泄进 bundle——泄漏形 `index-mmlMhzHG.js`/`08431d6c…` 逐字节复现；修形 = staging script 钉 `NODE_ENV=production` + 发布锚腿（bun test 环境内产出 == 发布锚，泄漏形负锁）；FORCE_COLOR 两档实测零差 |
 | 勘误入册 | `npm publish` 相对路径无 `./` 前缀被误判 git spec（ls-remote 报错）——发布命令一律 `./` 前缀 file 形 |
 | 候办 | repo remote 缺席（tag local-only）——GitHub/GitCode 推送候用户给 remote；AtlasCode 仓 `atlasharness-atlascode-0.1.120.tgz` 旧根残留与本包无关 |
+
+### Release addendum — npm 双组织 + 版本契约 (2026-11-20)
+
+| Field | Value |
+|---|---|
+| 版本契约 | 用户裁定 `docs/version-contract.md`：升级默认只升 0.1.x（0.2.0+/1.x 须用户明裁） |
+| npm 双组织 | `@atlasharness/atlasweb@0.1.0`（前发）+ `@atlaswork/atlasweb@0.1.0`（org atlaswork，vincentlau2026=owner；token 双组织通用，用户供 `~/.ssh/npmjs-atlas-token.txt`，staging script `--name` 参数化 @`f5671b0`，temp npmrc 用后即清） |
+| 第二形 SRI | sha256 `eb491e35…84a5f2` / sha512 `sha512-2tw89ByV…T3wA==`（docs/sri/v0.1.0.md 双组织节）；内容物与 @atlasharness 形字节恒等（仅 manifest name 差） |
+| GitHub 仓 | `github.com/vincentlau2046/AtlasWeb`（public，precedent=AtlasCode 形）：main + tag v0.1.0 已推（双平台 repo 面 1/2；GitCode 侧未启——用户澄清"两平台"=npm 双组织，GitCode org 探测线撤销） |
