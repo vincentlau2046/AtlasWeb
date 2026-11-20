@@ -60,7 +60,7 @@ executionRoutes: POST 路由挂 auth fence 之后；bind 三元组 host 侧先�
 - [ ] RED `decide binding is turn-exact`：同 session 跨 turn decide 被拒且零副作用（E5 新腿）。
 - [ ] RED `execution stream reconnects exactly once`：断线期间完成的回合与审批，重连后各恰好一次可见（执行流侧 E6 腿，cursor 语义复用 A4 形态；审计登记 b）。
 - [ ] 实现：queue/approval 状态机在上游内核（AtlasWeb 不自建裁判）；UI 状态只读投影 + 命令发送；`actorId` 展示值取自 `approval.settled` 事件，不本地推断。
-- [ ] GREEN：单测同 §2 + `--grep 'queue cancel|decide binding'`。
+- [ ] GREEN：单测同 §2 + `--grep 'queue cancel|decide binding|reconnects'`（含 E6 执行流断线新腿，防跑漏）。
 
 ## §4 B3 — 产品状态、交付物与设置
 
