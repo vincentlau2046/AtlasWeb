@@ -34,11 +34,15 @@ if (appManifest.version !== rootManifest.version) {
 }
 const version = rootManifest.version
 
-// dist 现构建（测的=发布的）。
+// dist 现构建（测的=发布的）。NODE_ENV 钉 production：ambient NODE_ENV
+// （如 bun test 进程的 test 值）会经 vite define 泄进 bundle——0.1.0 实测
+// 定谳（test 泄漏形 mmlMhzHG ≠ production 形 DROYFZrs），不钉则 caller
+// 环境改写发布字节。
 const build = Bun.spawnSync(['bun', 'run', '--cwd', 'apps/atlasweb', 'build'], {
   cwd: repoRoot,
   stdout: 'inherit',
   stderr: 'inherit',
+  env: { ...process.env, NODE_ENV: 'production' },
 })
 if (build.exitCode !== 0) {
   console.error('vite build failed')

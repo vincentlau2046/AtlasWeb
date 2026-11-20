@@ -54,4 +54,15 @@ describe('@atlasharness/atlasweb 0.1.0 publish staging (首发链)', () => {
     expect(integrity.sha256).toMatch(/^[0-9a-f]{64}$/)
     expect(integrity.sha512Base64).toMatch(/^sha512-[\w+/]+={0,2}$/)
   })
+
+  test('release anchor: staged tarball bytes == 0.1.0 SRI anchor (NODE_ENV 泄漏面锁)', async () => {
+    // 0.1.0 发布锚（docs/sri/v0.1.0.md）：脚本钉 NODE_ENV=production 后，
+    // 本腿在 bun test 环境（ambient NODE_ENV=test）内产出的 tarball 必须
+    // 与发布 tarball 字节恒等——泄漏形（mmlMhzHG / 08431d6c…）如实负锁。
+    // 后续版本发布时随 docs/sri/vX.Y.Z.md 同步换锚。
+    const integrity = JSON.parse(readFileSync(join(stagingDir, 'pack-integrity.json'), 'utf8')) as {
+      sha256: string
+    }
+    expect(integrity.sha256).toBe('0c4125a7d5cabde53aad456f7ae28d37aad1453198973538cc5d4f5b275c8e10')
+  })
 })
