@@ -54,6 +54,8 @@ export interface ConversationService {
   search(query: string): Promise<void>
   openSession(sessionId: string): Promise<void>
   openTarget(target: OpenTarget): Promise<void>
+  /** A4 手动重试（connectionLost 后经 openSession 同一机制重开当前会话）。 */
+  retry(): Promise<void>
   dispose(): Promise<void>
 }
 
@@ -196,6 +198,7 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
         targetOffsetPx={bound ? target.offsetPx : undefined}
         anchorMissed={anchorMissed || undefined}
         anchorStorage={config.anchorStorage ?? null}
+        onRetry={() => { void controller.retry() }}
       />
     )
   })
@@ -209,6 +212,7 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
     search: (query: string) => controller.search(query),
     openSession: (sessionId: string) => controller.openSession(sessionId),
     openTarget: (target: OpenTarget) => controller.openTarget(target),
+    retry: () => controller.retry(),
     dispose: () => {
       disposeNav()
       disposeMain()

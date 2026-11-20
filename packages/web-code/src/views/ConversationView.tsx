@@ -34,6 +34,8 @@ export interface ConversationViewProps {
   anchorMissed?: boolean
   /** A3 锚持久化面（sessionStorage；null/缺省 = 不写）。 */
   anchorStorage?: Storage | null
+  /** A4 手动重试（connectionLost「无法恢复可重试」面；缺省 = 不渲染按钮）。 */
+  onRetry?: () => void
 }
 
 /** Meta + body content of one message row. */
@@ -199,6 +201,9 @@ export function ConversationView(props: ConversationViewProps) {
           <span data-conn-error role='alert'>
             {conversation.error.code}: {conversation.error.message}
           </span>
+        )}
+        {conversation.error?.code === 'connectionLost' && props.onRetry !== undefined && (
+          <button type='button' data-conn-retry onClick={props.onRetry}>Retry</button>
         )}
         {props.anchorMissed === true && (
           <div className='web-code-anchor-missed' data-anchor-missed role='status'>

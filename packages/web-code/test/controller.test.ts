@@ -5,7 +5,7 @@ import { WebCodeController } from '../src/controller.ts'
 import type { AtlasConnection, AtlasFollowHandle } from '@atlasweb/web-connection'
 
 /** Manual-emit follow handle stub. */
-function stubHandle(): AtlasFollowHandle & { emit(event: unknown): Promise<void>; abortCalled: boolean } {
+function stubHandle(): AtlasFollowHandle & { emit(event: unknown): Promise<void>; abortCalled: boolean; setState(next: string): void } {
   const queue: unknown[] = []
   let wake: (() => void) | null = null
   let ended = false
@@ -25,9 +25,17 @@ function stubHandle(): AtlasFollowHandle & { emit(event: unknown): Promise<void>
       }
     },
   }
+  // A4 状态面（控制器订阅的 duck-typed 形）。
+  const stateListeners = new Set<() => void>()
+  let state: string = 'live'
   const handle = {
     events,
     abortCalled: false,
+    state: {
+      getSnapshot: () => state,
+      subscribe: (fn: () => void) => { stateListeners.add(fn); return () => { stateListeners.delete(fn) } },
+    },
+    setState(next: string): void { state = next; for (const l of stateListeners) l() },
     abort() { handle.abortCalled = true; finish() },
     done,
     emit: async event => {
@@ -238,6 +246,43 @@ describe('WebCodeController — conversation lifecycle', () => {
     // 更强语义：A 的迟到 replay 在 follow 建立前即被 generation 守卫丢弃
     // （handles 只含 B 的一条）——无泄漏流，不止是不覆盖。
     expect(handles).toHaveLength(1)
+  })
+
+  test('A4: a reconnecting handle state maps the model to reconnecting; live restores', async () => {
+    const { connection, handles } = stubConnection()
+    const controller = new WebCodeController(connection)
+    await controller.openSession('s1')
+    expect(controller.conversation.getSnapshot().status).toBe('live')
+    handles[0]!.setState('reconnecting')
+    expect(controller.conversation.getSnapshot().status).toBe('reconnecting')
+    handles[0]!.setState('live')
+    expect(controller.conversation.getSnapshot().status).toBe('live')
+  })
+
+  test('A4: retry() reopens the current session on the single-follow machinery', async () => {
+    const { connection, handles } = stubConnection()
+    const controller = new WebCodeController(connection)
+    // 无打开会话时 retry 是 no-op（不开新流）。
+    await controller.retry()
+    expect(handles).toHaveLength(0)
+    await controller.openSession('s1')
+    await handles[0]!.emit({ kind: 'error', error: { code: 'connectionLost', message: 'budget exhausted' } })
+    await handles[0]!.emit({ kind: 'closed' })
+    // 合成终态对（error → closed）：status 终态 closed，error 面保留（视图
+    // retry 按钮据 error.code 判「无法恢复可重试」）。
+    const terminal = controller.conversation.getSnapshot()
+    expect(terminal.status).toBe('closed')
+    expect(terminal.error?.code).toBe('connectionLost')
+    const before = handles.length
+    await controller.retry()
+    // 恰一条新 follow（旧流已终态；不是第二份活跃 follow）。
+    expect(handles.length).toBe(before + 1)
+    expect(handles[0]!.abortCalled).toBe(true)
+    const model = controller.conversation.getSnapshot()
+    expect(model.sessionId).toBe('s1')
+    expect(model.status).toBe('live')
+    expect(model.error).toBeUndefined()
+    expect(handles[1]!.abortCalled).toBe(false)
   })
 
   test('close() aborts the live handle and closes the connection', async () => {

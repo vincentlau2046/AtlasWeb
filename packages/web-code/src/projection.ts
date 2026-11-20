@@ -37,7 +37,7 @@ export interface MessageVM {
 /** Conversation model: the view's whole world. */
 export interface ConversationModel {
   sessionId: string | null
-  status: 'idle' | 'replay' | 'live' | 'reset' | 'closed' | 'error'
+  status: 'idle' | 'replay' | 'live' | 'reconnecting' | 'reset' | 'closed' | 'error'
   messages: MessageVM[]
   /** Skip annotations accumulated by fail-closed handling (RF3), in order. */
   annotations: Array<{ reason: string }>

@@ -129,6 +129,7 @@ export class WebCodeController {
   private rows: SessionRowVM[] = []
   private currentSessionId: string | null = null
   private currentHandle: AtlasFollowHandle | undefined
+  private handleStateUnsub: (() => void) | undefined
   private pumpGeneration = 0
   private searchGeneration = 0
 
@@ -201,6 +202,8 @@ export class WebCodeController {
   async openSession(sessionId: string): Promise<void> {
     this.currentHandle?.abort()
     this.currentHandle = undefined
+    this.handleStateUnsub?.()
+    this.handleStateUnsub = undefined
     const generation = ++this.pumpGeneration
     this.currentSessionId = sessionId
     this.sessionIdSource.set(sessionId)
@@ -221,6 +224,22 @@ export class WebCodeController {
     this.model.set({ ...replayed, sessionId })
     const handle = this.connection.follow(sessionId)
     this.currentHandle = handle
+    // A4 连接状态面映射：适配器「重连中」→ 模型 reconnecting（仅当当前
+    // 处于 live/reconnecting 态——error/closed 终态不被重连信号翻转）；
+    // 恢复 live 同理只从 reconnecting 态回写。
+    const followState = (handle as { state?: { getSnapshot(): string; subscribe(fn: () => void): () => void } }).state
+    if (followState !== undefined) {
+      this.handleStateUnsub = followState.subscribe(() => {
+        if (generation !== this.pumpGeneration) return
+        const snapshot = followState.getSnapshot()
+        const current = this.model.getSnapshot()
+        if (snapshot === 'reconnecting' && (current.status === 'live' || current.status === 'reconnecting')) {
+          this.model.set({ ...current, status: 'reconnecting' })
+        } else if (snapshot === 'live' && current.status === 'reconnecting') {
+          this.model.set({ ...current, status: 'live' })
+        }
+      })
+    }
     // The follow stream is established: replay-only face ends here.
     this.model.set({ ...this.model.getSnapshot(), status: 'live' })
     void this.pumpFollow(handle, generation)
@@ -270,9 +289,21 @@ export class WebCodeController {
   /** Tear down: abort the live stream and close the connection. */
   async dispose(): Promise<void> {
     this.pumpGeneration += 1
+    this.handleStateUnsub?.()
+    this.handleStateUnsub = undefined
     this.currentHandle?.abort()
     this.currentHandle = undefined
     await this.connection.close()
+  }
+
+  /**
+   * A4: 手动重试——经 openSession 同一机制重开当前会话（旧流已终态时才
+   * 是恢复入口；未打开会话时 no-op）。不是开第二份活跃 follow：openSession
+   * 先 abort 在途 handle + generation 守卫，任一时刻每会话恰一条流。
+   */
+  async retry(): Promise<void> {
+    if (this.currentSessionId === null) return
+    await this.openSession(this.currentSessionId)
   }
 
   /** Re-derive the title state from the current rows + retention. */

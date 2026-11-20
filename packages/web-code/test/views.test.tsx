@@ -118,6 +118,19 @@ describe('ConversationView', () => {
     expect(html).toContain('resourceLimit')
   })
 
+  test('A4: a connectionLost error renders the retry affordance; other errors do not', () => {
+    const lost = { ...modelFromProjection({ projection: seeded }), status: 'error' as const, error: { code: 'connectionLost', message: 'budget exhausted' } }
+    const html = renderToString(<ConversationView conversation={lost} onRetry={() => {}} />)
+    expect(html).toContain('data-conn-retry')
+    // 其他错误码不是「无法恢复可重试」面（无 retry 按钮）。
+    const other = { ...modelFromProjection({ projection: seeded }), status: 'error' as const, error: { code: 'unauthorized', message: 'no' } }
+    const htmlOther = renderToString(<ConversationView conversation={other} onRetry={() => {}} />)
+    expect(htmlOther).not.toContain('data-conn-retry')
+    // 无 onRetry 时按钮不渲染（只读宿主不冒充可重试）。
+    const htmlNoHandler = renderToString(<ConversationView conversation={lost} />)
+    expect(htmlNoHandler).not.toContain('data-conn-retry')
+  })
+
   test('RF5: only the visible window slice is rendered (bounded DOM)', () => {
     const big = {
       ...seeded,
