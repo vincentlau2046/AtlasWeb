@@ -172,6 +172,46 @@ describe('WebCodeController — conversation lifecycle', () => {
     expect(controller.titleState.getSnapshot().byId.s2?.retainedBy.mainView).toBe(0)
   })
 
+  test('A2: openTarget with a messageId opens the session and binds the target to it', async () => {
+    const { connection } = stubConnection()
+    const controller = new WebCodeController(connection)
+    expect(controller.targetMessage.getSnapshot()).toBeNull()
+    await controller.openTarget({ sessionId: 's1', messageId: 'm1' })
+    expect(controller.conversation.getSnapshot().sessionId).toBe('s1')
+    const target = controller.targetMessage.getSnapshot()
+    expect(target?.sessionId).toBe('s1')
+    expect(target?.messageId).toBe('m1')
+    expect(typeof target?.generation).toBe('number')
+  })
+
+  test('A2: repeating the same target bumps the generation (re-scroll trigger)', async () => {
+    const { connection } = stubConnection()
+    const controller = new WebCodeController(connection)
+    await controller.openTarget({ sessionId: 's1', messageId: 'm1' })
+    const first = controller.targetMessage.getSnapshot()
+    await controller.openTarget({ sessionId: 's1', messageId: 'm1' })
+    const second = controller.targetMessage.getSnapshot()
+    expect(second?.messageId).toBe('m1')
+    expect(second?.generation).toBe((first?.generation ?? 0) + 1)
+  })
+
+  test('A2: openTarget without a messageId delegates to openSession and clears any target', async () => {
+    const { connection } = stubConnection()
+    const controller = new WebCodeController(connection)
+    await controller.openTarget({ sessionId: 's1', messageId: 'm1' })
+    await controller.openTarget({ sessionId: 's2' })
+    expect(controller.conversation.getSnapshot().sessionId).toBe('s2')
+    expect(controller.targetMessage.getSnapshot()).toBeNull()
+  })
+
+  test('A2: plain openSession clears a stale target (no cross-session leak)', async () => {
+    const { connection } = stubConnection()
+    const controller = new WebCodeController(connection)
+    await controller.openTarget({ sessionId: 's1', messageId: 'm1' })
+    await controller.openSession('s2')
+    expect(controller.targetMessage.getSnapshot()).toBeNull()
+  })
+
   test('close() aborts the live handle and closes the connection', async () => {
     const { connection, handles } = stubConnection()
     let closed = false

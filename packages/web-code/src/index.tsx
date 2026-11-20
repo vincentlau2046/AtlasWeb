@@ -11,14 +11,18 @@ import type { ObservableSnapshot } from '@atlasweb/web-store'
 import type { SlotScopeAdapter } from '@atlasweb/web-slots'
 import { connect, type AtlasConnection, type AtlasConnectionConfig } from '@atlasweb/web-connection'
 import { WebCodeController,
-  type SearchModel, type SessionListModel, type SessionTitleState } from './controller.ts'
+  type OpenTarget, type SearchModel, type SessionListModel,
+  type SessionTitleState, type TargetMessageState } from './controller.ts'
 import type { ConversationModel } from './projection.ts'
 import { createSessionScopeAdapter } from './sessionScope.ts'
 import { NavigationColumnView } from './views/NavigationColumnView.tsx'
 import { ConversationView } from './views/ConversationView.tsx'
 
 export { WebCodeController } from './controller.ts'
-export type { SessionListModel, SessionRowVM, SearchModel, SearchResultVM, SessionTitleEntry, SessionTitleState } from './controller.ts'
+export type {
+  OpenTarget, SessionListModel, SessionRowVM, SearchModel, SearchResultVM,
+  SessionTitleEntry, SessionTitleState, TargetMessageState,
+} from './controller.ts'
 export { applyFollowEvent, emptyConversation, modelFromProjection } from './projection.ts'
 export type { ActivityBlockVM, AnnotationVM, BlockVM, ConversationModel, MessageVM, TextBlockVM } from './projection.ts'
 export { computeVisibleRange, REPLAY_OVERSCAN, REPLAY_WINDOW_SIZE } from './windowing.ts'
@@ -44,6 +48,7 @@ export interface ConversationService {
   refreshSessions(): Promise<void>
   search(query: string): Promise<void>
   openSession(sessionId: string): Promise<void>
+  openTarget(target: OpenTarget): Promise<void>
   dispose(): Promise<void>
 }
 
@@ -57,6 +62,7 @@ interface NavStandardProps {
 /** Slot-injected standard hooks for the conversation component. */
 interface ConversationStandardProps {
   useConversation: <S>(sel: (snapshot: ConversationModel) => S) => S
+  useTargetMessage: <S>(sel: (snapshot: TargetMessageState | null) => S) => S
 }
 
 /** Minimal context face the entry needs (stub-friendly structural form). */
@@ -123,7 +129,7 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
         searchResults={search.results}
         searchQuery={search.query}
         selectedId={selectedId}
-        onOpenSession={sessionId => { void controller.openSession(sessionId) }}
+        onOpenSession={target => { void controller.openTarget(target) }}
         onSearch={query => { void controller.search(query) }}
       />
     )
@@ -134,12 +140,21 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
     key: 'conversation',
     id: 'web-code.conversation',
     label: 'Conversation',
-    inject: (): { hooks: { conversation: ObservableSnapshot<ConversationModel> } } => ({
-      hooks: { conversation: controller.conversation },
+    inject: (): { hooks: { conversation: ObservableSnapshot<ConversationModel>; targetMessage: ObservableSnapshot<TargetMessageState | null> } } => ({
+      hooks: { conversation: controller.conversation, targetMessage: controller.targetMessage },
     }),
   }, function Conversation(standard: ConversationStandardProps) {
     const conversation = standard.useConversation(snapshot => snapshot)
-    return <ConversationView conversation={conversation} />
+    const target = standard.useTargetMessage(snapshot => snapshot)
+    // 目标与会话绑定：只把属于当前会话的定位锚传给视图（不跨会话泄露）。
+    const bound = target !== null && target.sessionId === conversation.sessionId
+    return (
+      <ConversationView
+        conversation={conversation}
+        targetMessageId={bound ? target.messageId : undefined}
+        targetGeneration={bound ? target.generation : undefined}
+      />
+    )
   })
 
   ctx.reflect.provide('conversation', {
@@ -150,6 +165,7 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
     refreshSessions: () => controller.refreshSessions(),
     search: (query: string) => controller.search(query),
     openSession: (sessionId: string) => controller.openSession(sessionId),
+    openTarget: (target: OpenTarget) => controller.openTarget(target),
     dispose: () => {
       disposeNav()
       disposeMain()

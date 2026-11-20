@@ -1,12 +1,16 @@
 // T6-A Task 8: 会话主视图（纯展示层——SSR 可渲染）。ReplayView 与 LiveFollow
 // 共此一体：同一模型（replay 加载 → follow 收敛），status 徽标区分。
-// RF5：消息列表经 windowing 切片只挂载可见窗（默认窗由滚动状态驱动；SSR
-// /测试注入 visibleRange 直证有界）。RF3：annotation 块/消息可见渲染。
+// RF5：消息列表窗化只挂载可见窗（A2 起 = @tanstack/react-virtual 可测量
+// 可变高 + 总跨度占位；SSR/测试注入 visibleRange 直证有界——回退路径仍走
+// windowing 自算切片，冻结清单白名单域、仅 web-code 声明）。RF3：annotation
+// 块/消息可见渲染。A2：目标消息定位（未挂载 → 滚到索引 → 测高后对齐）+
+// data-search-target 标记与稳定 data-message-id 同行绑定。
 import { useEffect, useRef, useState } from 'react'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { MarkdownText, Pill } from '@atlasweb/web-primitives'
 import type { MarkdownLabels } from '@atlasweb/web-primitives'
 import type { BlockVM, ConversationModel, MessageVM } from '../projection.ts'
-import { computeVisibleRange, type WindowRange } from '../windowing.ts'
+import { computeVisibleRange, REPLAY_OVERSCAN, REPLAY_WINDOW_SIZE, type WindowRange } from '../windowing.ts'
 
 /** Read-only Code view markdown chrome (English; locale edge lives with the shell host). */
 const MARKDOWN_LABELS: MarkdownLabels = {
@@ -17,20 +21,38 @@ const MARKDOWN_LABELS: MarkdownLabels = {
 /** Presentation props for the conversation view. */
 export interface ConversationViewProps {
   conversation: ConversationModel
-  /** Explicit window override (tests/SSR); default = scroll-driven window. */
+  /** Explicit window override (tests/SSR); default = virtualized window. */
   visibleRange?: WindowRange
+  /** A2 定位目标消息 id（与 conversation.sessionId 绑定后由槽位装配传入）。 */
+  targetMessageId?: string
+  /** A2 目标代数：重复点同一命中重触发滚动。 */
+  targetGeneration?: number
 }
 
-/** One message row. */
-function MessageRow({ message }: { message: MessageVM }) {
+/** Meta + body content of one message row. */
+function MessageBody({ message }: { message: MessageVM }) {
   return (
-    <div className='web-code-message' data-message-id={message.id} data-role={message.role}>
+    <>
       <div className='web-code-message-meta'>
         {message.createdAt !== null && <span>{message.createdAt.slice(0, 19).replace('T', ' ')}</span>}
       </div>
       <div className='web-code-message-body'>
         {message.blocks.map((block, index) => <BlockRow key={index} block={block} />)}
       </div>
+    </>
+  )
+}
+
+/** One message row (plain-list path). */
+function MessageRow({ message, searchTarget = false }: { message: MessageVM; searchTarget?: boolean }) {
+  return (
+    <div
+      className='web-code-message'
+      data-message-id={message.id}
+      data-role={message.role}
+      data-search-target={searchTarget || undefined}
+    >
+      <MessageBody message={message} />
     </div>
   )
 }
@@ -65,7 +87,7 @@ function EmptyState({ status }: { status: ConversationModel['status'] }) {
 /**
  * The conversation main panel: header (session identity + connection status),
  * then the windowed transcript.
- * @param props - the conversation model + optional explicit window.
+ * @param props - the conversation model + optional explicit window + target.
  * @returns the panel markup.
  */
 export function ConversationView(props: ConversationViewProps) {
@@ -73,19 +95,57 @@ export function ConversationView(props: ConversationViewProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const [scrollTop, setScrollTop] = useState(0)
   const pinnedToTail = useRef(true)
-  // Keep the tail visible while the stream appends and the reader is at the tail.
+  const alignedRef = useRef<string>('')
+  const total = conversation.messages.length
+
+  // A2：可测量可变高 + 总跨度占位（hook 无条件调用——无滚动元素（SSR/
+  // 首帧）或显式 visibleRange（测试/SSR 覆盖）时回退自算切片）。
+  const virtualizer = useVirtualizer({
+    count: total,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 64,
+    overscan: REPLAY_OVERSCAN,
+    getItemKey: index => conversation.messages[index]?.id ?? `idx-${index}`,
+  })
+
+  // Keep the tail visible while the stream appends and the reader is at the
+  // tail; rerun when the virtualized list takes over (full-span placeholder
+  // replaces the fallback slice height).
+  const virtualItems = virtualizer.getVirtualItems()
+  const virtualized = props.visibleRange === undefined && virtualItems.length > 0
   useEffect(() => {
     const element = scrollRef.current
     /* v8 ignore next -- the ref is always attached by effect time: the scroll container renders unconditionally. */
     if (element === null || !pinnedToTail.current) return
     element.scrollTop = element.scrollHeight
-  }, [conversation.messages])
+  }, [conversation.messages, virtualized])
 
-  const total = conversation.messages.length
+  // A2 定位：目标未挂载 → 滚到索引 → 测高后对齐（真实元素位置修正估高
+  // 滚动）；目标不在当前模型 → A3 明示回退（A2 no-op）。
+  useEffect(() => {
+    const targetId = props.targetMessageId
+    if (targetId === undefined) return
+    const key = `${targetId}:${props.targetGeneration ?? 0}`
+    if (alignedRef.current === key) return
+    const index = conversation.messages.findIndex(message => message.id === targetId)
+    if (index < 0) return
+    const element = scrollRef.current
+    if (element === null) return
+    alignedRef.current = key
+    pinnedToTail.current = false
+    virtualizer.scrollToIndex(index, { align: 'start' })
+    let raf = requestAnimationFrame(() => {
+      raf = requestAnimationFrame(() => {
+        const row = element.querySelector(`[data-message-id="${CSS.escape(targetId)}"]`)
+        if (row !== null) row.scrollIntoView({ block: 'start' })
+      })
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [props.targetMessageId, props.targetGeneration, conversation.messages, virtualizer])
+
   const range = props.visibleRange ?? computeVisibleRange(
-    total, scrollTop, 600, 28, { size: 60, overscan: 10 },
+    total, scrollTop, 600, 64, { size: REPLAY_WINDOW_SIZE, overscan: REPLAY_OVERSCAN },
   )
-  const slice = conversation.messages.slice(range.start, range.end)
   return (
     <div className='web-code-conversation' data-conversation>
       <div className='web-code-conversation-header' data-conversation-header>
@@ -106,9 +166,38 @@ export function ConversationView(props: ConversationViewProps) {
           setScrollTop(element.scrollTop)
         }}
       >
-        {total === 0
-          ? <EmptyState status={conversation.status} />
-          : slice.map(message => <MessageRow key={message.id} message={message} />)}
+        {total === 0 && <EmptyState status={conversation.status} />}
+        {total > 0 && virtualized && (
+          <div
+            className='web-code-transcript-list'
+            data-transcript-list
+            style={{ height: virtualizer.getTotalSize(), position: 'relative', width: '100%' }}
+          >
+            {virtualItems.map(item => {
+              const message = conversation.messages[item.index]
+              if (message === undefined) return null
+              return (
+                <div
+                  key={message.id}
+                  ref={virtualizer.measureElement}
+                  data-index={item.index}
+                  className='web-code-message'
+                  data-message-id={message.id}
+                  data-role={message.role}
+                  data-search-target={message.id === props.targetMessageId || undefined}
+                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${item.start}px)` }}
+                >
+                  <MessageBody message={message} />
+                </div>
+              )
+            })}
+          </div>
+        )}
+        {total > 0 && !virtualized && (
+          conversation.messages.slice(range.start, range.end).map(message => (
+            <MessageRow key={message.id} message={message} searchTarget={message.id === props.targetMessageId} />
+          ))
+        )}
       </div>
     </div>
   )

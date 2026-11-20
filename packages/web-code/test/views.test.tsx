@@ -134,4 +134,18 @@ describe('ConversationView', () => {
     expect(html).not.toContain('data-message-id="m160"')
     expect(html).not.toContain('data-message-id="m499"')
   })
+
+  test('A2: the target message row carries data-search-target', () => {
+    const model = modelFromProjection({ projection: seeded })
+    const html = renderToString(<ConversationView conversation={model} targetMessageId='m2' />)
+    // 标记与稳定 ID 同行绑定（搜索命中锚的可定位判据）。
+    expect(html).toMatch(/data-message-id="m2"[^>]*data-search-target/)
+  })
+
+  test('A2: non-target rows do not carry the marker (no cross-hit leak)', () => {
+    const model = modelFromProjection({ projection: seeded })
+    const html = renderToString(<ConversationView conversation={model} targetMessageId='m2' />)
+    const m1Row = html.slice(html.indexOf('data-message-id="m1"'), html.indexOf('data-message-id="m2"'))
+    expect(m1Row).not.toContain('data-search-target')
+  })
 })

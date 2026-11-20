@@ -13,10 +13,19 @@
  * 3. `bad scope fails closed` — 缺 --scope → 非零退出且零就绪行（无 listener）。
  * 4. server bundle 不经静态 HTTP 路径服出。
  *
+ * A2 腿（plan A2 RED 名）：
+ * 5. `long conversation reaches head and tail` — 真实 wheel 首尾可达
+ *    （m001/m360 与正文 viewport 相交）+ 挂载数有界（0 < n < 360）。
+ * 6. `search hit opens exact message` — 搜 QUAHOG-MID-NEEDLE → 点命中 →
+ *    `[data-message-id="m180"][data-search-target]` 在 viewport。
+ * 7. append 中段阅读不拽到底；滚到尾后新消息可见。
+ *
  * 报告卫生：令牌只在 runner 内存；不输出宿主绝对路径。
  */
+import { appendFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
-import { cleanupInstalled, createSessionRoot, installTgz, launchInstalledBin, mkdtempSafe, type InstalledApp, type InstalledBinHandle } from './fixtures/installedApp'
+import { cleanupInstalled, createSessionRoot, installTgz, launchInstalledBin, makeMessage, mkdtempSafe, type InstalledApp, type InstalledBinHandle } from './fixtures/installedApp'
 
 let installed: InstalledApp
 let sessionsBase: string
@@ -92,6 +101,102 @@ test('server bundle is not served via the static HTTP path', async ({ page }) =>
     const res = await page.request.get(`${host.baseUrl}/server/atlasweb.js`)
     expect([401, 404]).toContain(res.status())
     expect(await res.text()).not.toContain('#!')
+  } finally {
+    host.close()
+  }
+})
+
+/** A2 共用：打开长样本会话（初始 tail-pinned，m360 应即刻可见）。 */
+async function openLongSession(page: Page, host: InstalledBinHandle): Promise<void> {
+  await page.click('[data-session-id="long-0360"]')
+  await expect(page.locator('[data-message-id="m360"]')).toBeVisible({ timeout: 20_000 })
+}
+
+test('long conversation reaches head and tail', async ({ page }) => {
+  const host = await openInstalledApp(page)
+  try {
+    await openLongSession(page, host)
+    const transcript = page.locator('[data-transcript]')
+    const mounted = page.locator('[data-transcript] [data-message-id]')
+
+    // 首可达：真实 wheel 上滚到顶（reaudit 同程序，反向轮次）。
+    for (let round = 0; round < 5; round++) {
+      await transcript.hover()
+      await page.mouse.wheel(0, -40_000)
+      await page.waitForTimeout(200)
+    }
+    await expect(page.locator('[data-message-id="m001"]')).toBeInViewport({ timeout: 10_000 })
+
+    // 挂载数有界：虚拟化只挂可见窗（同一次测试内断言）。
+    const count = await mounted.count()
+    expect(count, '0 < mounted < 360（有界挂载，非全量）').toBeGreaterThan(0)
+    expect(count).toBeLessThan(360)
+
+    // 尾可达：3 轮 wheel 触底（reaudit 用户现实轮次口径）。
+    for (let round = 0; round < 3; round++) {
+      await transcript.hover()
+      await page.mouse.wheel(0, 40_000)
+      await page.waitForTimeout(200)
+    }
+    await expect(page.locator('[data-message-id="m360"]')).toBeInViewport({ timeout: 10_000 })
+  } finally {
+    host.close()
+  }
+})
+
+test('search hit opens exact message', async ({ page }) => {
+  const host = await openInstalledApp(page)
+  try {
+    const search = page.getByRole('textbox', { name: 'Search sessions' })
+    await search.fill('QUAHOG-MID-NEEDLE')
+    await search.press('Enter')
+    const hit = page.locator('[data-search-hit]').first()
+    await expect(hit).toBeVisible({ timeout: 20_000 })
+    await hit.click()
+    // 定位 = 未挂载 → 滚到索引 → 测高后对齐；标记与稳定 ID 同行。
+    await expect(page.locator('[data-message-id="m180"][data-search-target]')).toBeInViewport({ timeout: 20_000 })
+  } finally {
+    host.close()
+  }
+})
+
+test('append at mid-read keeps position; new message visible at tail', async ({ page }) => {
+  const host = await openInstalledApp(page)
+  try {
+    await openLongSession(page, host)
+    const transcript = page.locator('[data-transcript]')
+    // 滚离尾部到中段（循环小步上滚直到 m180 入视口——不依赖行高估计）。
+    for (let round = 0; round < 30 && !(await page.locator('[data-message-id="m180"]').isVisible()); round++) {
+      await transcript.hover()
+      await page.mouse.wheel(0, -2000)
+      await page.waitForTimeout(120)
+    }
+    await expect(page.locator('[data-message-id="m180"]')).toBeInViewport()
+
+    // runner 侧 append 一条新消息（follow poll 循环拾取）；模型更新信号 =
+    // 转录总跨度（scrollHeight 占位）增长——虚拟化下尾行中段时不挂载，
+    // 不能用 DOM 计数判到达。
+    const before = await transcript.evaluate(el => el.scrollHeight)
+    appendFileSync(join(mainDir, 'long-0360.jsonl'), makeMessage(
+      { uuid: 'm361', role: 'user', text: 'Appended tail marker m361.' },
+      'm360', 'long-0360', '2026-11-20T23:59:00.000Z',
+    ), 'utf8')
+    await page.waitForFunction(
+      prev => { const el = document.querySelector('[data-transcript]'); return el !== null && el.scrollHeight > prev },
+      before, { timeout: 20_000 },
+    )
+
+    // 中段阅读位不拽到底：m180 仍在视口；m361 未挂载（有界窗，非全量）。
+    await expect(page.locator('[data-message-id="m180"]')).toBeInViewport()
+    await expect(page.locator('[data-message-id="m361"]')).toHaveCount(0)
+
+    // 滚到尾后新消息可见。
+    for (let round = 0; round < 3; round++) {
+      await transcript.hover()
+      await page.mouse.wheel(0, 40_000)
+      await page.waitForTimeout(200)
+    }
+    await expect(page.locator('[data-message-id="m361"]')).toBeInViewport({ timeout: 10_000 })
   } finally {
     host.close()
   }

@@ -10,8 +10,9 @@
     "@atlasweb/web-connection": "*",
     "@atlasweb/web-primitives": "*",
     "@atlasweb/web-slots": "*",
+    "@atlasweb/web-store": "*",
+    "@tanstack/react-virtual": "3.14.26",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "@atlasweb/web-store": "*"
+    "react-dom": "^18.2.0"
   }
 }

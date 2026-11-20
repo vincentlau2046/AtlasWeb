@@ -3,7 +3,7 @@
 // data-empty-state（RF2）、I/O 错误 data-list-error、搜索命中 snippet。
 import { useState } from 'react'
 import { Input, Pill } from '@atlasweb/web-primitives'
-import type { SessionListModel, SearchResultVM, SessionRowVM } from '../controller.ts'
+import type { OpenTarget, SessionListModel, SearchResultVM, SessionRowVM } from '../controller.ts'
 
 /** Presentation props for the navigation column. */
 export interface NavigationColumnViewProps {
@@ -14,7 +14,8 @@ export interface NavigationColumnViewProps {
   searchQuery: string
   /** Currently open session id (row highlight; null = none selected). */
   selectedId?: string | null
-  onOpenSession(id: string): void
+  /** A2：会话行发 {sessionId}；搜索命中再带 messageId（定位锚）。 */
+  onOpenSession(target: OpenTarget): void
   onSearch(query: string): void
 }
 
@@ -51,7 +52,7 @@ export function NavigationColumnView(props: NavigationColumnViewProps) {
                 type='button'
                 className='web-code-nav-row'
                 data-search-hit
-                onClick={() => { props.onOpenSession(result.sessionId) }}
+                onClick={() => { props.onOpenSession({ sessionId: result.sessionId, messageId: result.messageId }) }}
               >
                 <span className='web-code-nav-snippet'>{result.snippet}</span>
               </button>
@@ -82,7 +83,7 @@ export function NavigationColumnView(props: NavigationColumnViewProps) {
             className='web-code-nav-row'
             data-session-id={session.id}
             data-selected={session.id === props.selectedId || undefined}
-            onClick={() => { props.onOpenSession(session.id) }}
+            onClick={() => { props.onOpenSession({ sessionId: session.id }) }}
           >
             <span className='web-code-nav-title'>{session.title ?? '(untitled)'}</span>
             <span className='web-code-nav-meta'>

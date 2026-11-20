@@ -36,6 +36,19 @@ export interface SearchModel {
   error?: { code: string; message: string }
 }
 
+/** A2 打开目标：会话必带；搜索命中再带消息锚。 */
+export interface OpenTarget {
+  sessionId: string
+  messageId?: string
+}
+
+/** A2 定位目标态：绑定目标与会话；generation 供重复命中重触发滚动。 */
+export interface TargetMessageState {
+  sessionId: string
+  messageId: string
+  generation: number
+}
+
 /** Structural session title state (web-layout session-face 契约形——duck-typed). */
 export interface SessionTitleEntry {
   id: string
@@ -100,12 +113,16 @@ export class WebCodeController {
   readonly titleState: ObservableSnapshot<SessionTitleState>
   /** 选中会话 id（session scope 适配器的侧写源；null = 无选中）。 */
   readonly sessionId: ObservableSnapshot<string | null>
+  /** A2 定位目标（null = 无；换会话即清——标记不跨会话泄露）。 */
+  readonly targetMessage: ObservableSnapshot<TargetMessageState | null>
 
   private readonly list: Source<SessionListModel>
   private readonly searchModel: Source<SearchModel>
   private readonly model: Source<ConversationModel>
   private readonly titles: Source<SessionTitleState>
   private readonly sessionIdSource = new Source<string | null>(null)
+  private readonly targetMessageSource = new Source<TargetMessageState | null>(null)
+  private targetGeneration = 0
   private rows: SessionRowVM[] = []
   private currentSessionId: string | null = null
   private currentHandle: AtlasFollowHandle | undefined
@@ -122,6 +139,7 @@ export class WebCodeController {
     this.conversation = this.model
     this.sessionId = this.sessionIdSource
     this.titleState = this.titles
+    this.targetMessage = this.targetMessageSource
   }
 
   /** Reload the session list (paged first page). */
@@ -183,6 +201,7 @@ export class WebCodeController {
     const generation = ++this.pumpGeneration
     this.currentSessionId = sessionId
     this.sessionIdSource.set(sessionId)
+    this.targetMessageSource.set(null) // A2：换会话即清定位目标（不跨会话泄露）
     this.republishTitles()
     this.model.set({ ...emptyConversation(), sessionId, status: 'replay' })
     let replayed: ConversationModel
@@ -202,6 +221,27 @@ export class WebCodeController {
     // The follow stream is established: replay-only face ends here.
     this.model.set({ ...this.model.getSnapshot(), status: 'live' })
     void this.pumpFollow(handle, generation)
+  }
+
+  /**
+   * A2: open a session (or reuse the open one) and bind a message target.
+   * Without a messageId this is exactly openSession (and clears any target);
+   * with one, the target is bound to the now-open session so the view can
+   * scroll to it (unmounted → scroll to index → refine after measurement).
+   */
+  async openTarget(target: OpenTarget): Promise<void> {
+    if (target.messageId === undefined) {
+      await this.openSession(target.sessionId)
+      return
+    }
+    if (this.currentSessionId !== target.sessionId) await this.openSession(target.sessionId)
+    // 开启竞争下不落目标：openSession 后会话已被切换则丢弃（目标绑定会话）。
+    if (this.currentSessionId !== target.sessionId) return
+    this.targetMessageSource.set({
+      sessionId: target.sessionId,
+      messageId: target.messageId,
+      generation: ++this.targetGeneration,
+    })
   }
 
   /**
