@@ -16,24 +16,36 @@ web-session runtime.
 
 ## Serving
 
-One command serves both the UI and the session API on the same origin: the
-repository's web-host launcher takes `--static` pointing at this bundle's
-`dist/` directory (from the installed npm package or a local build):
+### Installed package: one command (A1)
+
+The npm package ships a self-contained Node entry (`bin.atlasweb` →
+`server/atlasweb.js`, an ESM bundle that embeds the pinned
+`@atlasharness/atlascode/web-session-runtime` — the installed package has no
+npm runtime dependencies and needs only Node ≥ 20; no Bun required):
 
 ```sh
-# from the paired AtlasWeb repository checkout
-bun packages/web-host/src/launchCli.ts --port 8940 \
-  --static node_modules/@atlasharness/atlasweb/dist \
-  --scope main=<scope-dir>
+npm install @atlasharness/atlasweb   # or @atlaswork/atlasweb
+atlasweb --port 8940 --scope main=<scope-dir>
 # <scope-dir> is the AtlasCode session storage dir for your project,
 # e.g. ~/.atlas/projects/-home-vince-projects-atlascode (cwd with '/' → '-').
 ```
 
-It prints one ready line with a single-use launch `token`. Open
+The static root is fixed to the package's own `dist/`; it prints one ready
+line with a single-use launch `token`. Open
 `http://127.0.0.1:<port>/?token=<token>`; the app redeems it against the
-host (HttpOnly cookie) and strips it from the address bar. Browsers boot the
-UI without credentials — the static face sits in front of the auth gate and
-API calls ride the ambient cookie.
+host (HttpOnly cookie) and strips it from the address bar. A consumed,
+expired, or invalid open link renders a recovery notice (re-run `atlasweb …`
+for a fresh link) — it never falls back to an implicit authorization.
+
+### From the repository checkout
+
+The repository's web-host launcher serves the same face from source:
+
+```sh
+bun packages/web-host/src/launchCli.ts --port 8940 \
+  --static node_modules/@atlasharness/atlasweb/dist \
+  --scope main=<scope-dir>
+```
 
 `--static` is optional: without it the host serves only the API (pair with
 any static file server / reverse proxy for the UI). The launcher itself is

@@ -10,7 +10,7 @@
 // （sha256 hex + sha512 base64 = npm dist.integrity 同形）落 pack-integrity.json。
 // 幂等：staging 先清后建。
 import { createHash } from 'node:crypto'
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const repoRoot = new URL('..', import.meta.url).pathname.replace(/\/$/, '')
@@ -75,6 +75,43 @@ if (!existsSync(join(appDir, 'dist', 'index.html'))) {
 rmSync(stagingDir, { recursive: true, force: true })
 mkdirSync(stagingDir, { recursive: true })
 
+// -- A1 自包含 server bundle（一条启动命令）--
+// npmEntry + web-host + 构建时精确锁定的 @atlasharness/atlascode/
+// web-session-runtime 一起打成单文件 Node ESM bundle（非 node: 内建依赖
+// 全部内联；发布 manifest 零 npm runtime dependencies）。NODE_ENV 钉
+// production（同 vite 面：ambient NODE_ENV 不得改写发布字节）。
+const carrierRuntimeFile = Bun.resolveSync('@atlasharness/atlascode/web-session-runtime', join(repoRoot, 'packages', 'web-host'))
+const carrierManifest = JSON.parse(
+  readFileSync(join(repoRoot, 'node_modules', '@atlasharness', 'atlascode', 'package.json'), 'utf8'),
+) as { version: string }
+const runtimeSha256 = createHash('sha256').update(readFileSync(carrierRuntimeFile)).digest('hex')
+
+const serverDir = join(stagingDir, 'server')
+mkdirSync(serverDir, { recursive: true })
+const serverPath = join(serverDir, 'atlasweb.js')
+const bundle = Bun.spawnSync(
+  [
+    'bun', 'build', join(repoRoot, 'packages', 'web-host', 'src', 'npmEntry.ts'),
+    '--target=node', '--format=esm', `--outfile=${serverPath}`,
+  ],
+  {
+    cwd: repoRoot,
+    stdout: 'inherit',
+    stderr: 'inherit',
+    env: { ...process.env, NODE_ENV: 'production' },
+  },
+)
+if (bundle.exitCode !== 0 || !existsSync(serverPath)) {
+  console.error('server bundle build failed')
+  process.exit(1)
+}
+// Node shebang + 可执行位（npm pack 保留 mode → .bin shim 直跑）。
+const bundleBody = readFileSync(serverPath, 'utf8')
+if (!bundleBody.startsWith('#!')) {
+  writeFileSync(serverPath, `#!/usr/bin/env node\n${bundleBody}`)
+}
+chmodSync(serverPath, 0o755)
+
 const publishedManifest = {
   name: publishName,
   version,
@@ -82,7 +119,9 @@ const publishedManifest = {
   license: rootManifest.license,
   type: 'module',
   engines: rootManifest.engines ?? { node: '>=20' },
-  files: ['dist', 'README.md'],
+  bin: { atlasweb: 'server/atlasweb.js' },
+  files: ['dist', 'server', 'README.md'],
+  atlaswebCarrier: { version: carrierManifest.version, runtimeSha256 },
   repository: {
     type: 'git',
     url: 'git+https://github.com/vincentlau2046/AtlasWeb.git',

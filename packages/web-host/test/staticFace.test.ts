@@ -213,4 +213,36 @@ describe('httpHost static face (--static 同源组装)', () => {
     expect(() => createHttpHost({ sessionHost, auth, staticDir: 'relative/dist' })).toThrow()
     void sessionHost.close().catch(() => {})
   })
+
+  test('A1: server/ 产物不经静态 HTTP 路径服出（静态根=dist，兄弟 server/ 直取与穿越均拒）', async () => {
+    // 安装包布局：dist/（静态根）与 server/atlasweb.js（Node bundle）同级。
+    // 静态根固定 dist/ → /server/* 不存在；原形/编码穿越不得越界命中。
+    const root = mkdtempSync(join(tmpdir(), 'atlasweb-static-pkg-'))
+    try {
+      mkdirSync(join(root, 'dist'))
+      writeFileSync(join(root, 'dist', 'index.html'), INDEX_HTML)
+      mkdirSync(join(root, 'server'))
+      writeFileSync(join(root, 'server', 'atlasweb.js'), '#!/usr/bin/env node\nconsole.log("AW-SERVER-MARKER")\n')
+      const ctx = await startServer({ staticDir: join(root, 'dist') })
+      try {
+        // 无 cookie 直取 → 401（静态 miss 穿透 auth 链，既有语义零漂移）；
+        // 关键性质 = server 产物字节零服出。
+        const direct = await rawGet(PORT, '/server/atlasweb.js', { host: `${HOST}:${PORT}` })
+        expect([401, 404]).toContain(direct.status)
+        expect(direct.body).not.toContain('AW-SERVER-MARKER')
+
+        const traversal = await rawGet(PORT, '/../server/atlasweb.js', { host: `${HOST}:${PORT}` })
+        expect(traversal.status).toBeGreaterThanOrEqual(400)
+        expect(traversal.body).not.toContain('AW-SERVER-MARKER')
+
+        const encoded = await rawGet(PORT, '/%2e%2e/server/atlasweb.js', { host: `${HOST}:${PORT}` })
+        expect(encoded.status).toBeGreaterThanOrEqual(400)
+        expect(encoded.body).not.toContain('AW-SERVER-MARKER')
+      } finally {
+        await ctx.stop()
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
 })
