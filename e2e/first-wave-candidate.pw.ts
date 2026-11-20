@@ -252,11 +252,20 @@ test('narrow sidebar opens by keyboard', async ({ page }) => {
     await expect(search).toBeVisible({ timeout: 10_000 })
 
     // 可输入 + Esc 关闭并把焦点还给按钮（收起 = 帧级 data-sidebar-collapsed；
-    // 窄帧非 drawer 轨道内容不必隐藏，不在此断言输入框可见性）。
+    // <1024 现为真 drawer：收起侧栏内容 inert——搜索框/行按钮不得留在
+    // Tab 序列（reviewer Fix 6：850px 曾只扩 grid track，焦点逃逸到
+    // 不可见交互面））。
     await search.fill('short')
     await page.keyboard.press('Escape')
     await expect(toggle).toBeFocused()
     await expect(page.locator('[data-sidebar-collapsed]')).toHaveCount(1)
+    // 收起 = 内容 inert：搜索框不可见且不在可达树。
+    await expect(search).toBeHidden()
+    const inert = await page.evaluate(() => {
+      const col = document.querySelector('[data-sidebar-collapsed] [class*="sidebarCol"]')
+      return col !== null && col.hasAttribute('inert')
+    })
+    expect(inert, 'collapsed drawer content must be inert').toBe(true)
 
     // 宽屏（≥1024 常驻导航）：按钮不渲染。
     const wide = await page.context().newPage()
@@ -335,6 +344,9 @@ test('disconnect catches up exactly once', async ({ page }) => {
   const host = await openInstalledApp(page)
   try {
     await readToMidAndSettle(page)
+    // 补齐证据基线：冻结前的转录总跨度（scrollHeight 占位——虚拟化下离线
+    // 消息不挂载，跨度增长 = 模型已吸收，先于锚比对的「补齐已证实」）。
+    const spanBefore = await page.locator('[data-transcript]').evaluate(el => el.scrollHeight)
     // 冻结前的锚（锚写视口顶可见消息，非特定 needle——契约是「不变」非「=m180」）。
     const anchorBefore = await page.evaluate(key => sessionStorage.getItem(key), anchorKey('main', 'long-0360'))
     expect(anchorBefore).not.toBeNull()
@@ -356,7 +368,12 @@ test('disconnect catches up exactly once', async ({ page }) => {
       process.kill(host.pid, 'SIGCONT')
     }
 
-    // 恢复：follow 既有流以 replacement 送达（中段阅读位保持——不拽到底）。
+    // 恢复：follow 既有流以 replacement 送达。先证实补齐（跨度增长），
+    // 再比阅读位（reviewer Fix 3：锚断言不得先于补齐证据）。
+    await page.waitForFunction(
+      prev => { const el = document.querySelector('[data-transcript]'); return el !== null && el.scrollHeight > prev },
+      spanBefore, { timeout: 20_000 },
+    )
     const anchorMessageId = (JSON.parse(anchorBefore!) as { messageId: string }).messageId
     await expect(page.locator(`[data-message-id="${anchorMessageId}"]`)).toBeInViewport({ timeout: 20_000 })
     // 旧锚仍在：恢复后锚与冻结前逐字节一致（A3 契约不漂、不被重连改写）。
@@ -390,6 +407,10 @@ test('disconnect catches up exactly once', async ({ page }) => {
 
 test('expired cursor replaces baseline', async ({ page }) => {
   const host = await openInstalledApp(page)
+  // follow 请求观测：重连请求必须携带过期 cursor（伪 baseline 落地并
+  // 被采样的证据——整替链真实发生，非拦截未生效的真基线直达）。
+  const followUrls: string[] = []
+  page.on('request', r => { if (r.url().includes('/follow')) followUrls.push(r.url()) })
   try {
     await page.click('[data-session-id="other-0001"]')
     await expect(page.locator('[data-message-id="m001"]')).toBeVisible({ timeout: 20_000 })
@@ -423,7 +444,11 @@ test('expired cursor replaces baseline', async ({ page }) => {
     await expect(page.locator('[data-message-id="m001"]')).toBeVisible({ timeout: 20_000 })
     await page.click('[data-session-id="other-0001"]')
 
-    // 幽灵短暂在场后（新基线为准）被整替：幽灵消失、真消息在场、状态 live。
+    // 幽灵在场（伪 baseline 渲染证据；适配器退避 250ms 内可见）→ 整替。
+    await expect(page.locator('[data-message-id="ghost-expired"]')).toBeVisible({ timeout: 5_000 })
+    // 重连请求携带过期 cursor（异常断流路径持最近交付 cursor 续接的证据）。
+    await expect.poll(() => followUrls.some(url => url.includes('cursor=atlasweb-e2e-expired')), { timeout: 10_000 }).toBe(true)
+    // 幽灵消失（新基线为准）、真消息在场、状态 live。
     await expect(page.locator('[data-message-id="ghost-expired"]')).toHaveCount(0, { timeout: 20_000 })
     await expect(page.locator('[data-message-id="m001"]')).toBeVisible({ timeout: 20_000 })
     await expect(page.locator('[data-message-id="m002"]')).toBeVisible({ timeout: 10_000 })
