@@ -28,6 +28,13 @@
 
 - AtlasCode **0.1.125**（G-D 载体根修）→ AtlasWeb 依赖升 0.1.125。
 - AtlasWeb 0.1.1 → **0.1.2**（版本契约默认 lane；bundle 字节变 → 全换锚）。
+- 0.1.2 → **0.1.3**（终验 live 探针补丁）：dsh token 误用定谳——shell 真词汇表
+  `--dsw-alias-brand-primary` = neutral-bluish-1000（近黑墨色），views.css
+  search focus / 选中行 inset 边误用致近黑渲染；换真 accent
+  `--dsw-alias-brand-primary-new-colorprimary-new-color`（light deepseek-500 /
+  dark deepseek-450）。纯视觉零逻辑，SRI docs/sri/v0.1.3.md。
+  **方法论**：token 词汇表必须对 shell 注入面实测声明（styleSheets 逐表扫），
+  不得凭 CSS fallback 值臆断。
 - 收口：全套件 clean tree → tag/push → 双组织 publish（镜像纪律）→ registry 对表 →
   `~/atlasweb-live` 重装 → 起服务交用户终验。
 - Atlas-reveiw 送审（跨 session 矩阵）。
