@@ -16,16 +16,29 @@ web-session runtime.
 
 ## Serving
 
-The bundle is fully static — serve `dist/` with any static file server:
+One command serves both the UI and the session API on the same origin: the
+repository's web-host launcher takes `--static` pointing at this bundle's
+`dist/` directory (from the installed npm package or a local build):
 
 ```sh
-npx serve node_modules/@atlasharness/atlasweb/dist
+# from the paired AtlasWeb repository checkout
+bun packages/web-host/src/launchCli.ts --port 8940 \
+  --static node_modules/@atlasharness/atlasweb/dist \
+  --scope main=<scope-dir>
+# <scope-dir> is the AtlasCode session storage dir for your project,
+# e.g. ~/.atlas/projects/-home-vince-projects-atlascode (cwd with '/' → '-').
 ```
 
-It talks to an AtlasCode web-session host (launched via
-`@atlasharness/atlascode`'s web-host launch surface) on the same origin.
-Pass the launch token as `?token=<token>`; the app redeems it against the
-host and strips it from the address bar.
+It prints one ready line with a single-use launch `token`. Open
+`http://127.0.0.1:<port>/?token=<token>`; the app redeems it against the
+host (HttpOnly cookie) and strips it from the address bar. Browsers boot the
+UI without credentials — the static face sits in front of the auth gate and
+API calls ride the ambient cookie.
+
+`--static` is optional: without it the host serves only the API (pair with
+any static file server / reverse proxy for the UI). The launcher itself is
+part of this repository (`packages/web-host`) and is not yet published as a
+standalone binary.
 
 ## Versioning
 

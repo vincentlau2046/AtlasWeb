@@ -6,10 +6,12 @@
 // ConversationView）；④ 会话服务暴露（ctx.reflect.provide('conversation')）。
 // 只读红线：本包零对话输入面/审批面词汇、零写路径（会话取消等写操作不存在）。
 import type { ObservableSnapshot } from '@atlasweb/web-store'
+import type { SlotScopeAdapter } from '@atlasweb/web-slots'
 import { connect, type AtlasConnection, type AtlasConnectionConfig } from '@atlasweb/web-connection'
 import { WebCodeController,
   type SearchModel, type SessionListModel, type SessionTitleState } from './controller.ts'
 import type { ConversationModel } from './projection.ts'
+import { createSessionScopeAdapter } from './sessionScope.ts'
 import { NavigationColumnView } from './views/NavigationColumnView.tsx'
 import { ConversationView } from './views/ConversationView.tsx'
 
@@ -59,7 +61,11 @@ export interface WebCodeContext {
   slots: {
     provideRoot(contribution: { hooks: Record<string, unknown> }): () => void
     register(options: Record<string, unknown>, component: unknown): () => void
+    /** session scope 适配器安装（运行时 SlotRegistry 实有；stub 可缺省）。 */
+    installScope?(scope: 'session', adapter: SlotScopeAdapter): void
   }
+  /** 生命周期挂载（cordis ctx 实有；stub 可缺省）。 */
+  effect?(fn: () => (() => void) | void): () => void
   reflect: { provide(name: string, service: unknown): unknown }
 }
 
@@ -73,6 +79,13 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
   const connection: AtlasConnection = await connect({ ...config.connection, fetch: config.fetch ?? config.connection.fetch })
   const controller = new WebCodeController(connection)
   await controller.refreshSessions()
+
+  // session scope 适配器（ui-session 等价件）：renderRoot 全树包
+  // ScopeProvider('session-maybe')，'session' 适配器须恒安装——缺失即整树
+  // SlotAssemblyError（浏览器首启现形，2026-11-20）。订阅生命周期挂 ctx.effect。
+  const sessionAdapter = createSessionScopeAdapter(controller)
+  ctx.slots.installScope?.('session', sessionAdapter)
+  ctx.effect?.(() => sessionAdapter.dispose())
 
   const rootHandle = ctx.slots.provideRoot({
     hooks: { sessions: controller.titleState },

@@ -93,11 +93,14 @@ export class WebCodeController {
   readonly searchState: ObservableSnapshot<SearchModel>
   readonly conversation: ObservableSnapshot<ConversationModel>
   readonly titleState: ObservableSnapshot<SessionTitleState>
+  /** 选中会话 id（session scope 适配器的侧写源；null = 无选中）。 */
+  readonly sessionId: ObservableSnapshot<string | null>
 
   private readonly list: Source<SessionListModel>
   private readonly searchModel: Source<SearchModel>
   private readonly model: Source<ConversationModel>
   private readonly titles: Source<SessionTitleState>
+  private readonly sessionIdSource = new Source<string | null>(null)
   private rows: SessionRowVM[] = []
   private currentSessionId: string | null = null
   private currentHandle: AtlasFollowHandle | undefined
@@ -112,6 +115,7 @@ export class WebCodeController {
     this.sessionList = this.list
     this.searchState = this.searchModel
     this.conversation = this.model
+    this.sessionId = this.sessionIdSource
     this.titleState = this.titles
   }
 
@@ -173,6 +177,7 @@ export class WebCodeController {
     this.currentHandle = undefined
     const generation = ++this.pumpGeneration
     this.currentSessionId = sessionId
+    this.sessionIdSource.set(sessionId)
     this.republishTitles()
     this.model.set({ ...emptyConversation(), sessionId, status: 'replay' })
     let replayed: ConversationModel
