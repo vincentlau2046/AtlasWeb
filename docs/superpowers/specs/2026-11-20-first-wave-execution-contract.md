@@ -1,6 +1,6 @@
 # B0 执行合同：AtlasWeb 第一波真实执行接口协议（候选，未锁定）
 
-**状态（2026-11-20）**：本文是 B0 完整协议候选稿，依据[预盘点](../../2026-11-20-first-wave-b0-preflight.md)（五格 PASS + 两项登记，commit 4cfc2e1）与[第一波方案 §3](2026-11-20-first-wave-product-recovery-design.md) 起草。**未锁定**：须 Atlas-reveiw 独立审计 + AtlasCode Main 确认出口归属后，由 F4 宣布锁定；锁定前不发 B1–B3。未跑真实回合、未写会话、未改产品代码。
+**状态（2026-11-20）：B0 已锁定。** 锁定链：候选稿 b047a4f → Atlas-reveiw 审计 PASS（3 必改 3 登记）→ 落位 7cf9920 → 复核 PASS「锁定前提达成」；AtlasCode Main 出口归属确认（0f2480f 吸收）。**Main 确认引用（锁定登记要求，Atlas-reveiw 复核文）**：「出口归属 = 确认由 AtlasCode 承载……执行出口同形另立（导出名/包路径/版本我方实施波定名，合同不预填正确）。归属波次 = AtlasCode 侧独立波（lock-face 呈批 → 落码 → gate → 发布），B0 锁定后纳入我方队列」；「同进程拓扑 = 可实现，工作量归我方，小……B0 硬化（二次注入=硬错）= 在生产路径加 set-once 守卫」；「范围 = 无异议」。**挂账**：① AtlasCode 侧确认件 commit 锚待 set-once 守卫实码落 commit 时补足（届时按验收件常规对表）；② kernel 单例面穷尽清单 = 实施波验收件（§7），未交或有漏不收口。锁定解阻 B1–B3 按[实施计划](../plans/2026-11-20-first-wave-product-recovery.md)冻结表推进；本文未跑真实回合、未写会话、未改产品代码。
 
 ## §0 活码锚与不预填纪律
 
