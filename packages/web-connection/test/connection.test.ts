@@ -230,6 +230,121 @@ describe('web-connection: Atlas transport adapter (fixture host)', () => {
     await conn.close()
   })
 
+  test('A4: abnormal reconnect resumes from the last event cursor (有效 cursor 续接)', async () => {
+    const urls: string[] = []
+    const injectedFetch = (async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input)
+      if (url.includes('/follow')) {
+        urls.push(url)
+        if (urls.length === 1) {
+          // baseline 携 cursor 后流异常终止（无 closed）→ 适配器应持 cursor 续接。
+          return new Response('data: {"kind":"baseline","cursor":"c-live-1"}\n\n', { headers: { 'content-type': 'text/event-stream' } })
+        }
+        return new Response('data: {"kind":"baseline","cursor":"c-live-2"}\n\ndata: {"kind":"closed"}\n\n', { headers: { 'content-type': 'text/event-stream' } })
+      }
+      return fetch(input)
+    }) as typeof fetch
+    const { connect } = await loadAdapter()
+    const conn = await connect({ baseUrl: 'http://127.0.0.1:1', credential: 'unused', fetch: injectedFetch, backoffMs: 5 })
+    const handle = conn.follow('s')
+    const kinds = await collectKinds(handle, 5, 5000)
+    expect(kinds).toEqual(['baseline', 'baseline', 'closed'])
+    // 第二次连接必须携带第一流交付的 cursor（增量续接，非无 cursor 全量重放）。
+    expect(urls[1]).toContain('cursor=c-live-1')
+    await conn.close()
+  })
+
+  test('A4: resetRequired clears the captured cursor (失效 cursor 不复用)', async () => {
+    const urls: string[] = []
+    const injectedFetch = (async (input: string | URL | Request): Promise<Response> => {
+      const url = String(input)
+      if (url.includes('/follow')) {
+        urls.push(url)
+        if (urls.length === 1) {
+          return new Response(
+            'data: {"kind":"baseline","cursor":"c-stale"}\n\ndata: {"kind":"resetRequired","reason":"cursor expired"}\n\n',
+            { headers: { 'content-type': 'text/event-stream' } },
+          )
+        }
+        return new Response('data: {"kind":"baseline","cursor":"c-fresh"}\n\ndata: {"kind":"closed"}\n\n', { headers: { 'content-type': 'text/event-stream' } })
+      }
+      return fetch(input)
+    }) as typeof fetch
+    const { connect } = await loadAdapter()
+    const conn = await connect({ baseUrl: 'http://127.0.0.1:1', credential: 'unused', fetch: injectedFetch, backoffMs: 5 })
+    const handle = conn.follow('s')
+    const kinds = await collectKinds(handle, 5, 5000)
+    // resetRequired 后立即无 cursor 重开 → 新 baseline → closed。
+    expect(kinds).toEqual(['baseline', 'resetRequired', 'baseline', 'closed'])
+    expect(urls[1]).not.toContain('cursor=')
+    await conn.close()
+  })
+
+  test('A4: in-stream re-baseline after resetRequired is drained from the buffered chunk (同帧滞留不悬挂)', async () => {
+    // 服务端契约（web-session-runtime issueBaseline）：失效 cursor → resetRequired
+    // 后**同一条流**紧跟新 baseline（不结束流、不依赖客户端重开）。当两帧落在
+    // 同一 chunk 时，适配器不得把已缓冲的 baseline 滞留到下一次 read（SSE 长连
+    // 下一次 read 永不就绪 → 悬挂）。
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const frames = 'data: {"kind":"baseline","cursor":"c-stale"}\n\n'
+          + 'data: {"kind":"resetRequired","reason":"cursor expired"}\n\n'
+          + 'data: {"kind":"baseline","cursor":"c-fresh"}\n\n'
+        controller.enqueue(new TextEncoder().encode(frames))
+        // 流保持开放（不 close）——真服务端在 baseline 后继续挂流等新事件。
+      },
+    })
+    const injectedFetch = (async (input: string | URL | Request): Promise<Response> => {
+      if (String(input).includes('/follow')) {
+        return new Response(body, { headers: { 'content-type': 'text/event-stream' } })
+      }
+      return fetch(input)
+    }) as typeof fetch
+    const { connect } = await loadAdapter()
+    const conn = await connect({ baseUrl: 'http://127.0.0.1:1', credential: 'unused', fetch: injectedFetch, backoffMs: 5 })
+    const handle = conn.follow('s')
+    const kinds = await collectKinds(handle, 3, 1500)
+    // resetRequired 透传 + 同流新 baseline 直达消费者（无重开请求亦恢复）。
+    expect(kinds).toEqual(['baseline', 'resetRequired', 'baseline'])
+    handle.abort()
+    await handle.done
+    await conn.close()
+  })
+
+  test('A4: handle exposes a connection state face (connecting/live/reconnecting/ended)', async () => {
+    let calls = 0
+    const injectedFetch = (async (input: string | URL | Request): Promise<Response> => {
+      calls += 1
+      if (String(input).includes('/follow')) {
+        if (calls === 1) return Promise.reject(new Error('boom'))
+        return new Response('data: {"kind":"baseline","cursor":"c"}\n\ndata: {"kind":"closed"}\n\n', { headers: { 'content-type': 'text/event-stream' } })
+      }
+      return fetch(input)
+    }) as typeof fetch
+    const { connect } = await loadAdapter()
+    const conn = await connect({ baseUrl: 'http://127.0.0.1:1', credential: 'unused', fetch: injectedFetch, backoffMs: 5 })
+    const handle = conn.follow('s') as FollowHandleStub & { state?: { getSnapshot(): string; subscribe(fn: () => void): () => void } }
+    expect(handle.state).toBeDefined()
+    const seen: string[] = []
+    const push = (): void => {
+      const s = handle.state!.getSnapshot()
+      if (seen[seen.length - 1] !== s) seen.push(s)
+    }
+    const unsub = handle.state!.subscribe(push)
+    push()
+    const kinds = await collectKinds(handle, 5, 5000)
+    expect(kinds).toEqual(['baseline', 'closed'])
+    // 消费侧停在 closed yield 上（generator 未走完 finally）→ abort 驱动终态。
+    handle.abort()
+    await handle.done
+    push()
+    unsub()
+    // 状态轨迹：connecting（初始）→ reconnecting（首次连接失败重试中）→
+    // live（流就绪）→ ended（closed 终态）。
+    expect(seen).toEqual(['connecting', 'reconnecting', 'live', 'ended'])
+    await conn.close()
+  })
+
   test('no credential source → connect rejects', async () => {
     const { connect } = await loadAdapter()
     await expect(connect({ baseUrl: fixture.base })).rejects.toThrow(/credential/)

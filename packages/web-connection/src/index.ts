@@ -9,10 +9,11 @@
 // - SSE 帧：`data: <json>\n\n`；`closed` 恒唯一终态（error 后必跟 closed）。
 // - `resetRequired` = cursor 无效信号：适配器透传消费者后**自动无 cursor 重开**
 //   （收敛到新 baseline），同一事件流继续（Review Focus 1）。
-// - 流异常终止（未达 closed 即断）→ 有界重连（默认 3 次，backoff 后无 cursor
-//   重开——适配器不持有可续 cursor，收敛语义 = 新 baseline 重放）；预算耗尽 →
-//   合成 `error`(connectionLost) + `closed` 终态对交付（合成帧为适配器层语义，
-//   与协议 error→closed 成对形一致）。
+// - 流异常终止（未达 closed 即断）→ 有界重连（默认 3 次，backoff 后持最近
+//   交付的 cursor 增量续接——A4 有效 cursor 续接；失效 cursor 由服务端
+//   resetRequired 信号清空重开）；预算耗尽 → 合成 `error`(connectionLost) +
+//   `closed` 终态对交付（合成帧为适配器层语义，与协议 error→closed 成对形
+//   一致）。
 // - abort：消费侧 `handle.abort()` 即刻终止（在途帧被代次守卫丢弃，done 后
 //   iterator 恒终态——Review Focus 4 切换竞态面）。
 
@@ -55,9 +56,14 @@ export interface AtlasFollowOptions {
   resumeCursor?: string
 }
 
+/** A4 连接状态面：UI「正在连接/在线跟随/重连中/无法恢复可重试」的原始信号。 */
+export type AtlasFollowState = 'connecting' | 'live' | 'reconnecting' | 'ended'
+
 export interface AtlasFollowHandle {
   /** 协议事件流（closed 终态或 abort 后结束；resetRequired 透传后同流续上）。 */
   events: AsyncIterable<AtlasSessionEvent>
+  /** A4 连接状态（duck-typed HostObservable 形：getSnapshot + subscribe）。 */
+  state: { getSnapshot(): AtlasFollowState; subscribe(fn: () => void): () => void }
   abort(): void
   /** 流终态（closed 送达、abort、或合成终态对）后 resolve。 */
   done: Promise<void>
@@ -161,14 +167,26 @@ export async function connect(config: AtlasConnectionConfig): Promise<AtlasConne
     let resolveDone!: () => void
     const done = new Promise<void>(resolve => { resolveDone = resolve })
     let activeController: AbortController | undefined
+    // A4 状态面（duck-typed HostObservable）：connecting → live/reconnecting
+    // 循环 → ended（终态含 abort）。控制器据「重连中」映射 UI 徽标。
+    let followState: AtlasFollowState = 'connecting'
+    const stateListeners = new Set<() => void>()
+    const setState = (next: AtlasFollowState): void => {
+      if (followState === next) return
+      followState = next
+      for (const listener of stateListeners) listener()
+    }
     const finish = () => {
       if (finished) return
       finished = true
+      setState('ended')
       resolveDone()
     }
-    /** 预算耗尽的合成终态对（适配器层语义，与协议 error→closed 成对形一致）。 */
+    /** 预算耗尽的合成终态对（适配器层语义，与协议 error→closed 成对形一致；
+     *  A4 e2e 定谳：error 帧形必须是协议嵌套形 error:{code,message}——顶层
+     *  code 会被投影判为 unknown 错误码，丢失 connectionLost 语义）。 */
     const terminal = (message: string): AtlasSessionEvent[] => [
-      { kind: 'error', code: 'connectionLost', message },
+      { kind: 'error', error: { code: 'connectionLost', message } },
       { kind: 'closed' },
     ]
 
@@ -193,6 +211,7 @@ export async function connect(config: AtlasConnectionConfig): Promise<AtlasConne
             if (aborted || controller.signal.aborted) return
             if (reconnectsUsed >= maxReconnects) { yield* terminal(`follow connect failed: ${String(error)}`); return }
             reconnectsUsed += 1
+            setState('reconnecting')
             await sleep(backoffMs, controller.signal)
             continue
           }
@@ -201,9 +220,11 @@ export async function connect(config: AtlasConnectionConfig): Promise<AtlasConne
             controllers.delete(controller)
             if (reconnectsUsed >= maxReconnects) { yield* terminal(`follow HTTP ${res.status}`); return }
             reconnectsUsed += 1
+            setState('reconnecting')
             await sleep(backoffMs, controller.signal)
             continue
           }
+          setState('live')
           // outcome：closed=干净终态；reset=resetRequired 后无 cursor 立即重开；
           // abnormal=流异常终止（有界重连）。
           let outcome: 'closed' | 'reset' | 'abnormal' = 'abnormal'
@@ -211,44 +232,55 @@ export async function connect(config: AtlasConnectionConfig): Promise<AtlasConne
           try {
             const reader = res.body.getReader()
             try {
+              // 单环解析形：缓冲里有完整帧先解析（饿才 read）。resetRequired 后
+              // 服务端契约是**同一条流**紧跟新 baseline（web-session-runtime
+              // issueBaseline；流不结束）——若 resetRequired 后直接回到 read，
+              // 同 chunk 已缓冲的 baseline 会被滞留到下一次 read（SSE 长连下
+              // 永不就绪 → 消费者悬挂，A4 e2e 定谳）。
               let buffer = ''
               let closedArrived = false
               while (!closedArrived) {
-                const { done: readDone, value } = await reader.read()
-                if (readDone) break
-                buffer += decoder.decode(value, { stream: true })
                 let separator = buffer.indexOf('\n\n')
-                while (separator >= 0) {
-                  const frame = buffer.slice(0, separator)
-                  buffer = buffer.slice(separator + 2)
-                  separator = buffer.indexOf('\n\n')
-                  const data = parseFrameData(frame)
-                  if (data === undefined) continue
-                  let event: AtlasSessionEvent
-                  try {
-                    event = JSON.parse(data) as AtlasSessionEvent
-                  } catch {
-                    continue
-                  }
-                  if (event.kind === 'closed') {
-                    yield event
-                    outcome = 'closed'
-                    closedArrived = true
-                    break
-                  }
-                  if (event.kind === 'resetRequired') {
-                    yield event
-                    // 协议收敛形：无 cursor 立即重开；连续 resetRequired（无正常
-                    // 事件间隔）视作异常断流形计入重连预算（防 server 环路）。
-                    cursor = undefined
-                    resetStreak += 1
-                    outcome = resetStreak > 1 ? 'abnormal' : 'reset'
-                    break
-                  }
-                  resetStreak = 0
-                  if (aborted) return
-                  yield event
+                if (separator < 0) {
+                  const { done: readDone, value } = await reader.read()
+                  if (readDone) break
+                  buffer += decoder.decode(value, { stream: true })
+                  continue
                 }
+                const frame = buffer.slice(0, separator)
+                buffer = buffer.slice(separator + 2)
+                const data = parseFrameData(frame)
+                if (data === undefined) continue
+                let event: AtlasSessionEvent
+                try {
+                  event = JSON.parse(data) as AtlasSessionEvent
+                } catch {
+                  continue
+                }
+                if (event.kind === 'closed') {
+                  yield event
+                  outcome = 'closed'
+                  closedArrived = true
+                  break
+                }
+                if (event.kind === 'resetRequired') {
+                  yield event
+                  // 协议收敛形：清 cursor；同流续读（新 baseline 直达消费者）。
+                  // 连续 resetRequired（无正常事件间隔）视作异常断流形计入重连
+                  // 预算（防 server 环路）；流若就此终止则走无 cursor 重开。
+                  cursor = undefined
+                  resetStreak += 1
+                  outcome = resetStreak > 1 ? 'abnormal' : 'reset'
+                  continue
+                }
+                resetStreak = 0
+                // A4 有效 cursor 续接：协议事件携带 cursor（baseline/
+                // replacement）即采样——异常重连以此为续接点（失效 cursor
+                // 由服务端 resetRequired 信号清空重开，见上支）。
+                const eventCursor = (event as { cursor?: unknown }).cursor
+                if (typeof eventCursor === 'string' && eventCursor.length > 0) cursor = eventCursor
+                if (aborted) return
+                yield event
               }
             } finally {
               reader.cancel().catch(() => {})
@@ -268,7 +300,9 @@ export async function connect(config: AtlasConnectionConfig): Promise<AtlasConne
             return
           }
           reconnectsUsed += 1
-          cursor = undefined
+          setState('reconnecting')
+          // A4：异常重连持最近交付的 cursor 增量续接（失效由 resetRequired
+          // 信号清空——服务端契约面，不在适配器猜测）。
           await sleep(backoffMs, controller.signal)
         }
       } finally {
@@ -284,6 +318,13 @@ export async function connect(config: AtlasConnectionConfig): Promise<AtlasConne
 
     return {
       events,
+      state: {
+        getSnapshot: (): AtlasFollowState => followState,
+        subscribe: (fn: () => void): (() => void) => {
+          stateListeners.add(fn)
+          return () => { stateListeners.delete(fn) }
+        },
+      },
       abort() {
         aborted = true
         activeController?.abort()
