@@ -186,3 +186,17 @@ Plan `docs/superpowers/plans/2026-11-19-t6a-shell-port-plan.md`（审计通过�
 | 审计复跑插曲（如实档） | 审计侧两轮假阳性：CLI 形 230 violations（CLI 无 external-deps 面，fail-closed 如实）；programmatic 形 6 violations（证据装配缺口：node:module 漏列 + mdast 裸指明符未映射）——两轮均被证据面解释、无一带过，**fail-closed 语义实证** |
 | 条件兑现：收口门 runner 落仓 | `scripts/verify-kernel-boundary.ts`（本仓）——一条命令复现波终门：闭包证据全从本仓现读（manifest deps∪devDeps 全 workspace 面 + tsconfig.base.json paths 派生 vendor 别名 9 + node 内建 ×10 逐项列举 + mdast→@types/mdast 映射），scanner 单一事实源 = 配对仓 AtlasCode（ATLASCODE_ROOT 覆写，不 vendored 不手拷）；退出码 0/1/2 三态 fail-closed。**canonical 复现值：allowed=true / violations=0 / externalImports=238 / roots 16 / declared 54**（与波档原录 238 恰合；审计侧 230 = 复建装配广度差，落仓后单一装配面收口） |
 | 判据腿 | `packages/web-host/test/kernelBoundaryRunner.test.ts` 3 腿：runner 在位 + 一条命令复现断言（allowed/violations/证据面）+ fail-closed 负腿锁（scanner 缺席 → exit 2 零结论产出，环境缺口不得伪装成绿） |
+
+## Release record — @atlasharness/atlasweb 0.1.0 (2026-11-20)
+
+| Field | Value |
+|---|---|
+| 授权 | 用户批 0.1.0 首发 + npm 发布；包名钉定 `@atlasharness/atlasweb`（AskUserQuestion，家族 scope 一致形，账号 vincentlau2026 持 scope） |
+| 发布链 | 发布 staging script 落仓 `scripts/build-npm-package.ts`（版本=收口契约：root 单源 + apps 同值 fail-closed；dist 现构建；staging manifest 生成，源 workspace manifest/bun.lock 不动）→ SRI `docs/sri/v0.1.0.md` → tag `v0.1.0`（local，repo 无 remote）→ `npm publish ./build/atlasharness-atlasweb-0.1.0.tgz --registry npmjs.org --access public` |
+| 发布提交 | `84057aa`（clean-tree 389 pass / 1 skip / 0 fail，56 files；tarball 发布提交树终验字节恒等） |
+| Tarball SRI | sha256 `0c4125a7…75c8e10`；sha512 `sha512-HOQz8+9x…INDOA==`；clean-tree 重建 ×4 恒等（FORCE_COLOR 0/3 两档） |
+| Registry 对表 | `npm view dist.integrity` = `sha512-HOQz8+9x…INDOA==` **与 SRI 逐字一致**（传播 ~3min） |
+| 安装品验证 | registry 沙箱 `npm install @atlasharness/atlasweb@0.1.0`：三内容物（index.html 573B / JS 586,054B / CSS 32,662B）**与 SRI 字节级恒等**；静态 serve 烟测 GET / 200（boot 装配链头注在场）+ 两 asset 200 精确字节 + **安装品词表零命中**（只读红线 installation-level）；0 vulnerabilities |
+| 定因入册 | ambient `NODE_ENV`（bun test=test）经 vite define 泄进 bundle——泄漏形 `index-mmlMhzHG.js`/`08431d6c…` 逐字节复现；修形 = staging script 钉 `NODE_ENV=production` + 发布锚腿（bun test 环境内产出 == 发布锚，泄漏形负锁）；FORCE_COLOR 两档实测零差 |
+| 勘误入册 | `npm publish` 相对路径无 `./` 前缀被误判 git spec（ls-remote 报错）——发布命令一律 `./` 前缀 file 形 |
+| 候办 | repo remote 缺席（tag local-only）——GitHub/GitCode 推送候用户给 remote；AtlasCode 仓 `atlasharness-atlascode-0.1.120.tgz` 旧根残留与本包无关 |
