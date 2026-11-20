@@ -23,7 +23,7 @@
 
 **S1 落地细化采认（F4，2026-11-21）**：arming 落双车道 `getCoreDependencies()` 单例门（装配期恰一次幂等）而非 `createCoreDependencies()` 本体——本体为测试直装配面（loop-deps-compose 单文件 8 调用），arming 入本体 = 测试车道全灭；单例门 = 产品进程唯一组合入口，与批复「双车道组合根装配期恰一次」语义一致，判为批复形内细化、非偏离。两残余登记（TUI 车道 sessionEnv 槽理论缝由源级扫描腿封死进场路径——TUI 未来若需 sessionEnv 注入，正道 = factory 组合根扩注入点，非运行时调用〔审计明文化〕；跨车道同进程顶撞在现 headless/TUI 分进程拓扑不可达）随清单在案。
 
-**批复条件对 upstream.ts 的影响（§1 执行时必读）**：① 符号级 import 扫描——「除 upstream.ts 外零执行出口 import」按具名符号判（`createExecutionOutlet`/`ExecutionOutlet`/`webExecutionV0` 型），不按 module specifier（同 subpath 后与只读面 import 串同形）；② E1 增格——出口构造零引擎引导（懒触达），probe=off 下构造+任一命令 = 拒且内核零痕迹；③ 上限执法归上游 kernel，AtlasWeb 零重复执法（原文不变）。
+**批复条件对 upstream.ts 的影响（§1 执行时必读）**：① 单接触点 import 扫描——「除 upstream.ts 外零执行出口 import」按 **module specifier（`./web-session-runtime/execution`）与具名符号（`createExecutionOutlet`/`ExecutionOutlet`/`webExecutionV0` 型）双判，任一命中即违规**（S4 修订二后 specifier 判复又可行且更强；审计登记：原「同 subpath 故 specifier 不可判」理由句随改形失效）；② E1 增格——出口构造零引擎引导（懒触达），probe=off 下构造+任一命令 = 拒且内核零痕迹；③ 上限执法归上游 kernel，AtlasWeb 零重复执法（原文不变）。
 
 ## §1 共享地基（随 B1 首切片落，不单独成段）
 
