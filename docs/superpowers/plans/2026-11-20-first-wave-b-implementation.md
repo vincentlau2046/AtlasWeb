@@ -16,7 +16,7 @@
 | 锚 | 值 | 来源 |
 |---|---|---|
 | 执行出口导出名 | `createExecutionOutlet`（+ `ExecutionOutlet`/`ExecutionOutletOptions`；信封/事件型自 `webExecutionV0`） | 呈批书 §1，批复 @a62925c0 |
-| 执行出口包路径 | `@atlasharness/atlascode/web-session-runtime`（同 subpath 扩具名导出；单载体裁定） | 同上 |
+| 执行出口包路径 | `@atlasharness/atlascode/web-session-runtime/execution`（同包第二 subpath，2026-11-21 S4 裁定改形——S0-R pack「runtime 零 zod」锚定冲突，见合同 §1 实施修订二；runtime 面仍 `./web-session-runtime` 不动） | 呈批书 §1 + S4 裁定（原「同 subpath 扩具名导出」形因发布制品出口面落空作废） |
 | 首个承载版本 | `0.1.126`候（以排波段 L 为准） | 同上 |
 | set-once 守卫实码 commit 锚 | **AtlasCode `f92aea7e`**（S1 收口 2026-11-21：armed 三槽恰一次 + armed 态 reset 硬错 + 判别单测 7/7 + 源级扫描腿） | 锁定登记挂账①兑现；调用点清单 = AtlasCode `docs/2026-11-21-s1-setonce-callaudit.md` |
 | 单例面穷尽清单 | 待交（S4 前验收件②） | 实施波验收件② |
