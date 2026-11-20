@@ -21,7 +21,7 @@
 | set-once 守卫实码 commit 锚 | **AtlasCode `f92aea7e`**（S1 收口 2026-11-21：armed 三槽恰一次 + armed 态 reset 硬错 + 判别单测 7/7 + 源级扫描腿） | 锁定登记挂账①兑现；调用点清单 = AtlasCode `docs/2026-11-21-s1-setonce-callaudit.md` |
 | 单例面穷尽清单 | 待交（S4 前验收件②） | 实施波验收件② |
 
-**S1 落地细化采认（F4，2026-11-21）**：arming 落双车道 `getCoreDependencies()` 单例门（装配期恰一次幂等）而非 `createCoreDependencies()` 本体——本体为测试直装配面（loop-deps-compose 单文件 8 调用），arming 入本体 = 测试车道全灭；单例门 = 产品进程唯一组合入口，与批复「双车道组合根装配期恰一次」语义一致，判为批复形内细化、非偏离。两残余登记（TUI 车道 sessionEnv 槽理论缝由源级扫描腿封死进场路径；跨车道同进程顶撞在现 headless/TUI 分进程拓扑不可达）随清单在案。
+**S1 落地细化采认（F4，2026-11-21）**：arming 落双车道 `getCoreDependencies()` 单例门（装配期恰一次幂等）而非 `createCoreDependencies()` 本体——本体为测试直装配面（loop-deps-compose 单文件 8 调用），arming 入本体 = 测试车道全灭；单例门 = 产品进程唯一组合入口，与批复「双车道组合根装配期恰一次」语义一致，判为批复形内细化、非偏离。两残余登记（TUI 车道 sessionEnv 槽理论缝由源级扫描腿封死进场路径——TUI 未来若需 sessionEnv 注入，正道 = factory 组合根扩注入点，非运行时调用〔审计明文化〕；跨车道同进程顶撞在现 headless/TUI 分进程拓扑不可达）随清单在案。
 
 **批复条件对 upstream.ts 的影响（§1 执行时必读）**：① 符号级 import 扫描——「除 upstream.ts 外零执行出口 import」按具名符号判（`createExecutionOutlet`/`ExecutionOutlet`/`webExecutionV0` 型），不按 module specifier（同 subpath 后与只读面 import 串同形）；② E1 增格——出口构造零引擎引导（懒触达），probe=off 下构造+任一命令 = 拒且内核零痕迹；③ 上限执法归上游 kernel，AtlasWeb 零重复执法（原文不变）。
 
