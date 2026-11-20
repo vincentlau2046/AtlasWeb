@@ -87,7 +87,8 @@ queue:    每 session 有界 FIFO（默认深度 16，B0 锁定值）
 
 ## §7 实例隔离（预盘点登记② → 硬约束）
 
-- **组合根恰一次注入**：产品模式对 `setKernelBootstrapState` / `setSessionEnv` 恰注入一次；**二次注入 = 硬错（非覆盖）**。B0 实现须使现 API 的静默覆盖语义在该模式下不可达。
+- **组合根恰一次注入**：产品模式对 `setKernelBootstrapState` / `setSessionEnv` 恰注入一次；**二次注入 = 硬错（非覆盖）**。B0 实现须使现 API 的静默覆盖语义在该模式下不可达（AtlasCode Main 确认：set-once 守卫收敛于 injection.ts 单文件 + 调用点审计 + 判别单测，`resetKernelBootstrapStateForTests` 显式测试缝保留；组合根恰一次须对 `src/atlascode/compose.ts` headless 装配点与 TUI factory 双车道均成立）。
+- **单例面穷尽清单（实施波验收件）**：kernel 状态面其余模块级单例的穷尽审计由 AtlasCode 实施波交单，作为 B0 锁定后的验收件之一；清单未交或审计有漏 = 该实施波不收口。
 - 同进程双工作区反证：两个独立临时工作区交错执行，各自读写只落对应工作区，会话历史、权限上下文、取消域互不串染（取消甲不伤乙）；禁用改全局 CWD/env 的方式凑隔离。
 - 可测判据 E7：上述交错场景全部通过且无静默状态顶替；隔离不成立即 B0 不锁。
 
