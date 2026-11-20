@@ -20,6 +20,19 @@
  *    `[data-message-id="m180"][data-search-target]` 在 viewport。
  * 7. append 中段阅读不拽到底；滚到尾后新消息可见。
  *
+ * A4 腿（plan A4 RED 名）：
+ * 11. `disconnect catches up exactly once` — SIGSTOP 冻结 bin（真「阻断当前
+ *     follow」），冻结期 append offline-1/offline-2，SIGCONT 后经既有流以
+ *     replacement 送达：两条各恰一次、顺序正确；阅读位（m180）保持、
+ *     旧锚仍在（sessionStorage 锚指向既有消息）。
+ * 12. `expired cursor replaces baseline` — 路由面伪造携带过期 cursor 的
+ *     baseline（幽灵消息）→ 流异常终止 → 适配器持过期 cursor 续接 →
+ *     服务端 resetRequired → 无 cursor 重开 → 真基线整替：幽灵消失、
+ *     真消息在场（不把旧消息并入）。
+ * 13. `unrecoverable connection offers retry` — follow 全断（> 重试预算）→
+ *     合成 connectionLost 终态对 → 错误面 + Retry 按钮可达；解除阻断后
+ *     手动重试恢复，且在途 follow 恰一条（不是第二份活跃 follow）。
+ *
  * 报告卫生：令牌只在 runner 内存；不输出宿主绝对路径。
  */
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
@@ -163,6 +176,11 @@ test('search hit opens exact message', async ({ page }) => {
 
 test('append at mid-read keeps position; new message visible at tail', async ({ page }) => {
   const host = await openInstalledApp(page)
+  // fixture 是 beforeAll 共享目录：本腿 append m361（parentUuid=m360）——不恢复
+  // 会让后续腿的 m360 出现双子分叉（有效链取更晚叶子，offline 消息被投影
+  // 丢弃，A4 腿 11 全文件跑定谳）。finally 必须恢复原样。
+  const jsonlPath = join(mainDir, 'long-0360.jsonl')
+  const original = readFileSync(jsonlPath, 'utf8')
   try {
     await openLongSession(page, host)
     const transcript = page.locator('[data-transcript]')
@@ -199,6 +217,7 @@ test('append at mid-read keeps position; new message visible at tail', async ({ 
     }
     await expect(page.locator('[data-message-id="m361"]')).toBeInViewport({ timeout: 10_000 })
   } finally {
+    writeFileSync(join(mainDir, 'long-0360.jsonl'), original, 'utf8')
     host.close()
   }
 })
@@ -257,10 +276,17 @@ test('refresh restores conversation and anchor', async ({ page }) => {
     await readToMidAndSettle(page)
     // URL 同步回写当前选择（reload 后为恢复入口）。
     await expect(page).toHaveURL(/session=long-0360/, { timeout: 10_000 })
+    // 锚契约 = 「锚处回到视口」非「=m180」（与腿 11 同一裁定）：helper 的
+    // -2000px 步进滚动只保证 m180 可见——锚 effect 写的是视口顶行，可能是
+    // m171 等更早的高行（DBG 定谳：m171/offsetPx 0，恢复后 m180 恰在折叠线
+    // 下 62px，恢复本身忠实）。断言恢复后锚消息本身回视口，对锚落点不敏感。
+    const anchorRaw = await page.evaluate(key => sessionStorage.getItem(key), anchorKey('main', 'long-0360'))
+    expect(anchorRaw).not.toBeNull()
+    const restoredMessageId = (JSON.parse(anchorRaw!) as { messageId: string }).messageId
 
     await page.reload()
-    // 恢复 = 同会话仍开 + 阅读锚处（m180）回到视口（scrollToIndex + 偏移修正）。
-    await expect(page.locator('[data-message-id="m180"]')).toBeInViewport({ timeout: 20_000 })
+    // 恢复 = 同会话仍开 + 阅读锚处回到视口（scrollToIndex + 偏移修正）。
+    await expect(page.locator(`[data-message-id="${restoredMessageId}"]`)).toBeInViewport({ timeout: 20_000 })
     await expect(page).toHaveURL(/session=long-0360/)
   } finally {
     host.close()
@@ -269,12 +295,15 @@ test('refresh restores conversation and anchor', async ({ page }) => {
 
 test('missing anchor is explicit', async ({ page }) => {
   const host = await openInstalledApp(page)
+  // fixture 是 beforeAll 共享目录：本腿删 m180 行改写样本，A4 腿排到其后——
+  // finally 必须恢复原样，否则 m180 永久缺席，后续腿的 m180 依赖全部落空。
+  const jsonlPath = join(mainDir, 'long-0360.jsonl')
+  const original = readFileSync(jsonlPath, 'utf8')
   try {
     await readToMidAndSettle(page)
 
     // runner 侧改写样本：删 m180 行（只按 uuid 键过滤——parentUuid 引用不误伤）。
-    const jsonlPath = join(mainDir, 'long-0360.jsonl')
-    const kept = readFileSync(jsonlPath, 'utf8')
+    const kept = original
       .split('\n')
       .filter(line => line.length > 0 && !line.includes('"uuid":"m180"'))
     writeFileSync(jsonlPath, `${kept.join('\n')}\n`, 'utf8')
@@ -296,6 +325,150 @@ test('missing anchor is explicit', async ({ page }) => {
     // 虚拟化测高收敛可致尾部短暂出视口，属估高工件，非缺席语义）。
     await expect(page.locator('[data-transcript] [data-message-id]').first()).toBeVisible({ timeout: 10_000 })
     await expect(page).toHaveURL(/session=long-0360/)
+  } finally {
+    writeFileSync(join(mainDir, 'long-0360.jsonl'), original, 'utf8')
+    host.close()
+  }
+})
+
+test('disconnect catches up exactly once', async ({ page }) => {
+  const host = await openInstalledApp(page)
+  try {
+    await readToMidAndSettle(page)
+    // 冻结前的锚（锚写视口顶可见消息，非特定 needle——契约是「不变」非「=m180」）。
+    const anchorBefore = await page.evaluate(key => sessionStorage.getItem(key), anchorKey('main', 'long-0360'))
+    expect(anchorBefore).not.toBeNull()
+
+    // 真「阻断当前 follow」：SIGSTOP 冻结 bin 进程——既有 SSE 连接保持但
+    // 服务面停摆；冻结期 runner 侧追加两条离线消息。
+    process.kill(host.pid, 'SIGSTOP')
+    try {
+      appendFileSync(join(mainDir, 'long-0360.jsonl'), makeMessage(
+        { uuid: 'm-offline-1', role: 'user', text: 'Offline catch-up marker one.' },
+        'm360', 'long-0360', '2026-11-20T23:58:00.000Z',
+      ), 'utf8')
+      appendFileSync(join(mainDir, 'long-0360.jsonl'), makeMessage(
+        { uuid: 'm-offline-2', role: 'assistant', text: 'Offline catch-up marker two.' },
+        'm-offline-1', 'long-0360', '2026-11-20T23:58:30.000Z',
+      ), 'utf8')
+      await page.waitForTimeout(1500)
+    } finally {
+      process.kill(host.pid, 'SIGCONT')
+    }
+
+    // 恢复：follow 既有流以 replacement 送达（中段阅读位保持——不拽到底）。
+    const anchorMessageId = (JSON.parse(anchorBefore!) as { messageId: string }).messageId
+    await expect(page.locator(`[data-message-id="${anchorMessageId}"]`)).toBeInViewport({ timeout: 20_000 })
+    // 旧锚仍在：恢复后锚与冻结前逐字节一致（A3 契约不漂、不被重连改写）。
+    const anchorAfter = await page.evaluate(key => sessionStorage.getItem(key), anchorKey('main', 'long-0360'))
+    expect(anchorAfter).toBe(anchorBefore)
+
+    // 滚到尾：两条各恰一次、顺序正确。
+    const transcript = page.locator('[data-transcript]')
+    for (let round = 0; round < 3; round++) {
+      await transcript.hover()
+      await page.mouse.wheel(0, 40_000)
+      await page.waitForTimeout(200)
+    }
+    const off1 = page.locator('[data-message-id="m-offline-1"]')
+    const off2 = page.locator('[data-message-id="m-offline-2"]')
+    await expect(off1).toBeVisible({ timeout: 10_000 })
+    await expect(off2).toBeVisible({ timeout: 10_000 })
+    await expect(off1).toHaveCount(1)
+    await expect(off2).toHaveCount(1)
+    const order = await page.evaluate(() => {
+      const a = document.querySelector('[data-message-id="m-offline-1"]')
+      const b = document.querySelector('[data-message-id="m-offline-2"]')
+      if (a === null || b === null) return 0
+      return a.getBoundingClientRect().top < b.getBoundingClientRect().top ? 1 : -1
+    })
+    expect(order, 'offline-1 precedes offline-2 in document order').toBe(1)
+  } finally {
+    host.close()
+  }
+})
+
+test('expired cursor replaces baseline', async ({ page }) => {
+  const host = await openInstalledApp(page)
+  try {
+    await page.click('[data-session-id="other-0001"]')
+    await expect(page.locator('[data-message-id="m001"]')).toBeVisible({ timeout: 20_000 })
+
+    // 切出再切回，制造新的 follow 请求；路由面接住它并伪造「携带过期
+    // cursor 的 baseline」（含幽灵消息）。响应体结束（无 closed）→ 适配器
+    // 异常断流路径持过期 cursor 续接 → 真 server resetRequired → 无 cursor
+    // 重开 → 真基线整替。
+    const pattern = '**/sessions/other-0001/follow*'
+    let intercepted = false
+    await page.route(pattern, route => {
+      if (intercepted) { void route.fallback(); return }
+      intercepted = true
+      const fakeBaseline = {
+        kind: 'baseline', baselineId: 'fake', cursor: 'atlasweb-e2e-expired', generation: 'g0',
+        projection: {
+          sessionId: 'other-0001', productId: 'atlascode', scopeId: 'main',
+          semantics: 'persisted-effective-conversation',
+          messages: [{ id: 'ghost-expired', role: 'user', createdAt: null, blocks: [{ kind: 'text', text: 'ghost from stale cursor' }] }],
+          truncated: false,
+        },
+        schemaVersion: 0,
+      }
+      void route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream',
+        body: `data: ${JSON.stringify(fakeBaseline)}\n\n`,
+      })
+    })
+    await page.click('[data-session-id="short-0001"]')
+    await expect(page.locator('[data-message-id="m001"]')).toBeVisible({ timeout: 20_000 })
+    await page.click('[data-session-id="other-0001"]')
+
+    // 幽灵短暂在场后（新基线为准）被整替：幽灵消失、真消息在场、状态 live。
+    await expect(page.locator('[data-message-id="ghost-expired"]')).toHaveCount(0, { timeout: 20_000 })
+    await expect(page.locator('[data-message-id="m001"]')).toBeVisible({ timeout: 20_000 })
+    await expect(page.locator('[data-message-id="m002"]')).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('[data-conn-status="live"]')).toHaveCount(1)
+    // 不把旧消息并入：渲染集恰为服务端真值（两条），无幽灵、无重复。
+    await expect(page.locator('[data-transcript] [data-message-id="ghost-expired"]')).toHaveCount(0)
+    await page.unroute(pattern)
+  } finally {
+    host.close()
+  }
+})
+
+test('unrecoverable connection offers retry', async ({ page }) => {
+  const host = await openInstalledApp(page)
+  // 在途 follow 计数（request 对象恒等；SSE 长连接只在 abort/close 时出集）。
+  const inflight = new Set<unknown>()
+  const isFollow = (url: string): boolean => url.includes('/follow')
+  page.on('request', r => { if (isFollow(r.url())) inflight.add(r) })
+  page.on('requestfinished', r => { if (isFollow(r.url())) inflight.delete(r) })
+  page.on('requestfailed', r => { if (isFollow(r.url())) inflight.delete(r) })
+  try {
+    // 选中会话（URL 写 ?session= → 刷新后的自动恢复入口）。
+    await page.click('[data-session-id="short-0001"]')
+    await expect(page.locator('[data-message-id="m001"]')).toBeVisible({ timeout: 20_000 })
+    await expect(page).toHaveURL(/session=short-0001/, { timeout: 10_000 })
+
+    // follow 全断（持续 > 重试预算）：刷新后 boot 自动重开 → 有界重连 →
+    // 预算耗尽 → 合成 connectionLost 终态对。
+    await page.route('**/sessions/*/follow*', route => { void route.abort() })
+    await page.reload()
+    const errorFace = page.locator('[data-conn-error]')
+    await expect(errorFace).toContainText('connectionLost', { timeout: 20_000 })
+    // 「无法恢复可重试」面：Retry 按钮可达（明确反馈，不静默重连死循环）。
+    const retry = page.locator('[data-conn-retry]')
+    await expect(retry).toBeVisible()
+
+    // 解除阻断 → 手动重试 → 恢复（同会话、消息在场、状态 live）。
+    await page.unroute('**/sessions/*/follow*')
+    await retry.click()
+    await expect(page.locator('[data-message-id="m001"]')).toBeVisible({ timeout: 20_000 })
+    await expect(page.locator('[data-conn-status="live"]')).toHaveCount(1)
+    // 手动重试不是开第二份活跃 follow：恢复后在途 follow 恰一条。
+    await page.waitForTimeout(1000)
+    expect(inflight.size, 'exactly one live follow stream after manual retry').toBe(1)
+    await expect(page).toHaveURL(/session=short-0001/)
   } finally {
     host.close()
   }

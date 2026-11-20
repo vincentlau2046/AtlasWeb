@@ -255,6 +255,8 @@ export interface InstalledBinHandle {
   /** 打开链接（单次兑换）；只在内存传递，禁入日志/报告。 */
   redeemUrl: string
   token: string
+  /** A4 断线腿：bin 进程号（SIGSTOP/SIGCONT 冻结/恢复服务面）。 */
+  pid: number
   close(): void
 }
 
@@ -308,6 +310,7 @@ export async function launchInstalledBin(app: InstalledApp, sessionsDir: string)
     baseUrl: `http://127.0.0.1:${ready.port}`,
     redeemUrl: `http://127.0.0.1:${ready.port}/auth/redeem?token=${encodeURIComponent(ready.token)}`,
     token: ready.token,
+    pid: child.pid ?? -1,
     close(): void {
       child.kill('SIGTERM')
       const timer = setTimeout(() => child.kill('SIGKILL'), 5000)
