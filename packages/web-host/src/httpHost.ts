@@ -20,6 +20,7 @@ import { isLoopbackRequest } from './fence'
 import { pumpFollowEvents, SlowConsumerError } from './followPump'
 import type { LaunchAuth } from './auth'
 import type { SessionHost } from './sessionHost'
+import { createExecutionRoutes } from './execution/executionRoutes'
 
 export const SESSION_COOKIE = 'atlas_session'
 
@@ -38,6 +39,15 @@ export interface HttpHostOptions {
    * fence 仍全局面生效。fail-closed：非绝对路径/不存在/非目录 → throw。
    */
   staticDir?: string
+  /**
+   * 可选执行出口（B 附表 §1，默认 off）：提供即挂载 POST /execution/*
+   * 路由（auth fence 之后）；缺省 = 404 且零 upstream 构造（E1 引擎零
+   * 启动）。组合根恰一次（§7）由 executionRoutes 构造侧守卫。
+   */
+  execution?: {
+    upstream: import('./execution/upstream').ExecutionUpstream
+    workspaceAuth: import('./execution/workspaceAuth').WorkspaceAuthorizer
+  }
 }
 
 // 静态面单文件上限（resourceLimit 形；dist 资产量级 ≤1MiB，64MiB 为粗界）。
@@ -89,6 +99,25 @@ function sendContractError(res: ServerResponse, status: number, code: string, me
     kind: 'error',
     error: { code, message },
   })
+}
+
+// 执行出口 POST 体读入（B 附表 §1）：有界（3MiB = 合同 §8 2MiB text 上限
+// + envelope 余量）；超限 → null（调用面映射 413）。非 JSON → null（调用面
+// 映射 400 语义由 dispatch invalidCommand 承载）。
+const EXECUTION_BODY_MAX_BYTES = 3 * 1024 * 1024
+async function readJsonBody(req: IncomingMessage): Promise<unknown | null> {
+  const chunks: Buffer[] = []
+  let total = 0
+  for await (const chunk of req) {
+    total += (chunk as Buffer).length
+    if (total > EXECUTION_BODY_MAX_BYTES) return null
+    chunks.push(chunk as Buffer)
+  }
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+  } catch {
+    return null
+  }
 }
 
 function readCookie(req: IncomingMessage): string | undefined {
@@ -195,6 +224,11 @@ export function createHttpHost(options: HttpHostOptions): Server {
     if (!st.isDirectory()) throw new Error('staticDir must be a directory')
     staticRoot = realpathSync(options.staticDir)
   }
+  // 执行出口路由（B 附表 §1）：仅在显式提供时构造（默认 off = 零构造，
+  // E1 引擎零启动语义的上半）；重复注入同 upstream 在此构造期硬错（§7）。
+  const executionRoutes = options.execution !== undefined
+    ? createExecutionRoutes(options.execution)
+    : null
   return createServer((req, res) => {
     void (async () => {
       try {
@@ -234,6 +268,29 @@ export function createHttpHost(options: HttpHostOptions): Server {
           return
         }
         // 3. 路由表
+        // B 附表 §1 执行出口路由（auth fence 之后）：probe 仅连接级鉴权；
+        // 五写命令 host 侧 bind 预校验（E1/E2）→ upstream（kernel 权威）。
+        // 未启用 = 404 且零 upstream 构造（E1 引擎零启动；构造在 host
+        // 创建期，未提供 options.execution 即从未发生）。
+        if (req.method === 'POST' && path.startsWith('/execution/')) {
+          if (executionRoutes === null) {
+            sendJson(res, 404, { error: 'not found' })
+            return
+          }
+          const sub = path.slice('/execution/'.length)
+          if (sub === 'probe') {
+            sendJson(res, 200, executionRoutes.probe())
+            return
+          }
+          const body = await readJsonBody(req)
+          if (body === null) {
+            sendJson(res, 413, { error: 'resource limit' })
+            return
+          }
+          const result = await executionRoutes.dispatch(body as Parameters<typeof executionRoutes.dispatch>[0])
+          sendJson(res, result.status, result.body)
+          return
+        }
         // S0-R4 件 A 第四面：search（query 界 1-256 码点 = 契约面，host 预验
         // fail-closed；runtime 信任上层已验——readonlyRuntime.d.ts:98）。
         if (req.method === 'GET' && path === '/sessions/search') {

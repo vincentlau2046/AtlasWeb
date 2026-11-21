@@ -24,6 +24,8 @@
 import { createSessionHost, type SessionHost } from './sessionHost'
 import { createLaunchAuth } from './auth'
 import { createHttpHost } from './httpHost'
+import { createExecutionUpstream } from './execution/upstream'
+import { createWorkspaceAuthorizer } from './execution/workspaceAuth'
 import { randomBytes } from 'node:crypto'
 
 interface CliArgs {
@@ -35,10 +37,16 @@ interface CliArgs {
   sessionTtlMs?: number
   /** 可选：UI 静态面目录（同源组装，httpHost.staticDir）。 */
   staticDir?: string
+  /** 执行能力开关（B 附表 §1，默认 off——缺省零构造零路由）。 */
+  execution: boolean
+  /** 逐工作区授权绑定 id=dir（仅 --execution 下必填 ≥1）。 */
+  workspaces: Array<{ workspaceId: string; dir: string }>
+  /** actorId 真源（F2 fail-closed：--execution 下必填非空）。 */
+  actorId?: string
 }
 
 function parseArgs(argv: string[]): CliArgs {
-  const args: CliArgs = { port: 0, scopes: [] }
+  const args: CliArgs = { port: 0, scopes: [], execution: false, workspaces: [] }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!
     if (a === '--port') args.port = Number(argv[++i] ?? '')
@@ -51,6 +59,13 @@ function parseArgs(argv: string[]): CliArgs {
     } else if (a === '--follow-slow-consumer-ms') args.followSlowConsumerMs = Number(argv[++i] ?? '')
     else if (a === '--session-ttl-ms') args.sessionTtlMs = Number(argv[++i] ?? '')
     else if (a === '--static') args.staticDir = argv[++i] ?? ''
+    else if (a === '--execution') args.execution = true
+    else if (a === '--workspace') {
+      const spec = argv[++i] ?? ''
+      const eq = spec.indexOf('=')
+      if (eq <= 0) throw new Error(`--workspace expects id=dir, got "${spec}"`)
+      args.workspaces.push({ workspaceId: spec.slice(0, eq), dir: spec.slice(eq + 1) })
+    } else if (a === '--actor-id') args.actorId = argv[++i] ?? ''
     else throw new Error(`unknown argument: ${a}`)
   }
   if (args.secret !== undefined && args.secret.length < 16) throw new Error('--secret (if given) must be >=16 bytes')
@@ -66,6 +81,16 @@ function parseArgs(argv: string[]): CliArgs {
   }
   if (args.scopes.length === 0) throw new Error('at least one --scope id=dir required')
   if (args.staticDir !== undefined && !args.staticDir.startsWith('/')) throw new Error('--static must be an absolute path')
+  // 执行能力（B 附表 §1，默认 off）：显式开启才要求配套（fail-closed：
+  // workspace 绑定 ≥1 + actorId 非空——F2 web 车道零 ambient）。
+  if (args.execution) {
+    if (args.workspaces.length === 0) throw new Error('--execution requires at least one --workspace id=dir')
+    if (typeof args.actorId !== 'string' || args.actorId.length === 0) {
+      throw new Error('--execution requires --actor-id (web lane fail-closed, F2) — ambient fallback is CLI-lane only')
+    }
+  } else if (args.workspaces.length > 0 || (args.actorId !== undefined && args.actorId.length > 0)) {
+    throw new Error('--workspace/--actor-id only valid together with --execution')
+  }
   return args
 }
 
@@ -81,11 +106,24 @@ export async function main(argv: string[]): Promise<void> {
     secret: args.secret ?? randomBytes(32).toString('base64url'),
     ...(args.sessionTtlMs !== undefined ? { sessionTtlMs: args.sessionTtlMs } : {}),
   })
+  // 执行能力装配（B 附表 §1，默认 off——args.execution=false 时零构造，
+  // E1 引擎零启动语义）。单接触点：装配面只 import upstream 薄适配。
+  let execution: Parameters<typeof createHttpHost>[0]['execution'] | undefined
+  if (args.execution) {
+    const workspaceAuth = createWorkspaceAuthorizer()
+    for (const { workspaceId, dir } of args.workspaces) workspaceAuth.grantWorkspace(workspaceId, dir)
+    const upstream = createExecutionUpstream({
+      actorId: () => args.actorId!,
+      workspaceDir: (id) => workspaceAuth.workspaceDir(id),
+    })
+    execution = { upstream, workspaceAuth }
+  }
   const server = createHttpHost({
     sessionHost,
     auth,
     ...(args.followSlowConsumerMs !== undefined ? { followSlowConsumerMs: args.followSlowConsumerMs } : {}),
     ...(args.staticDir !== undefined ? { staticDir: args.staticDir } : {}),
+    ...(execution !== undefined ? { execution } : {}),
   })
   await sessionHost.start()
   await new Promise<void>(resolve => server.listen(args.port, '127.0.0.1', resolve))
