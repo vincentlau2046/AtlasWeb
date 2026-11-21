@@ -14,7 +14,7 @@ import {
   SearchSessionsSuccessSchema,
   ReplaySessionSuccessSchema,
   WebSessionErrorResponseSchema,
-} from '@atlasharness/atlascode/web-contract'
+} from '@atlaswork/atlascode/web-contract'
 
 const HOST = '127.0.0.1'
 const PORT = 8951

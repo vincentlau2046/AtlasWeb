@@ -9,8 +9,8 @@ import { describe, expect, test } from 'bun:test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createDefaultReadonlySessionRuntime, createReadonlySessionRuntime } from '@atlasharness/atlascode/web-session-runtime'
-import { WebSessionError } from '@atlasharness/atlascode/web-session-runtime'
+import { createDefaultReadonlySessionRuntime, createReadonlySessionRuntime } from '@atlaswork/atlascode/web-session-runtime'
+import { WebSessionError } from '@atlaswork/atlascode/web-session-runtime'
 
 function seededTranscript(dir: string, name: string, entries: string[]): string {
   writeFileSync(join(dir, `${name}.jsonl`), entries.join('\n') + '\n')

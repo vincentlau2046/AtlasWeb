@@ -8,7 +8,7 @@ import {
   ReplaySessionSuccessSchema,
   WebSessionErrorResponseSchema,
   WebSessionEventSchema,
-} from '@atlasharness/atlascode/web-contract'
+} from '@atlaswork/atlascode/web-contract'
 
 // E2E-10 浏览器侧契约验证（计划 v1 P2）：所有 HTTP 响应与 SSE 帧过
 // web-contract zod schema（浏览器 ESM 产物，zod/v4）客户端解析。

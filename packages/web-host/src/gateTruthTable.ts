@@ -46,8 +46,8 @@ function readRepo(rel: string): string {
 function carrierPin(): string {
   const root = JSON.parse(readRepo('package.json')) as { dependencies?: Record<string, string> }
   const host = JSON.parse(readRepo('packages/web-host/package.json')) as { dependencies?: Record<string, string> }
-  const rootPin = root.dependencies?.['@atlasharness/atlascode']
-  const hostPin = host.dependencies?.['@atlasharness/atlascode']
+  const rootPin = root.dependencies?.['@atlaswork/atlascode']
+  const hostPin = host.dependencies?.['@atlaswork/atlascode']
   if (rootPin !== hostPin) return '' // 双 pin 不一致 = 不满足
   return rootPin ?? ''
 }
@@ -177,7 +177,7 @@ export function evaluateGates(now: Date = new Date()): GateTable {
       gate: 'G1',
       criterion: '上游载体精确 pin（根 + web-host 双面一致；禁 npm link/源路径拼接）',
       state: pin !== '' ? 'satisfied' : 'gap',
-      evidence: `@atlasharness/atlascode = ${pin || '<missing/mismatch>'}（exact pin, npm registry only）`,
+      evidence: `@atlaswork/atlascode = ${pin || '<missing/mismatch>'}（exact pin, npm registry only）`,
     },
     {
       id: 'pairing-records',

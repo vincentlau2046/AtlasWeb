@@ -16,10 +16,10 @@ const stagingDir = join(repoRoot, 'build', 'npm-package')
 const tarballPath = join(repoRoot, 'build', 'atlasharness-atlasweb-0.1.3.tgz')
 
 /** 载体双 pin 对表源：host manifest 的 exact pin。 */
-const hostPin = (JSON.parse(readFileSync(join(repoRoot, 'packages/web-host/package.json'), 'utf8')) as { dependencies: Record<string, string> }).dependencies['@atlasharness/atlascode']!
+const hostPin = (JSON.parse(readFileSync(join(repoRoot, 'packages/web-host/package.json'), 'utf8')) as { dependencies: Record<string, string> }).dependencies['@atlaswork/atlascode']!
 
 /** 实际构建输入的载体 runtime JS（exports 解析面 = bundle 实际打进的面）。 */
-const carrierRuntimePath = join(repoRoot, 'node_modules', '@atlasharness', 'atlascode', 'dist', 'web-session-runtime', 'index.js')
+const carrierRuntimePath = join(repoRoot, 'node_modules', '@atlaswork', 'atlascode', 'dist', 'web-session-runtime', 'index.js')
 
 describe('@atlasharness/atlasweb 0.1.3 publish staging (A1 self-contained)', () => {
   test('staging script exists and version contract holds (root = apps = 0.1.3)', () => {
@@ -62,7 +62,7 @@ describe('@atlasharness/atlasweb 0.1.3 publish staging (A1 self-contained)', () 
       atlaswebCarrier: { version: string; runtimeSha256: string }
     }
     // 载体版本对表：node_modules 实装 manifest 版本 = staging 溯源版本 = host pin。
-    const installed = JSON.parse(readFileSync(join(repoRoot, 'node_modules', '@atlasharness', 'atlascode', 'package.json'), 'utf8')) as { version: string }
+    const installed = JSON.parse(readFileSync(join(repoRoot, 'node_modules', '@atlaswork', 'atlascode', 'package.json'), 'utf8')) as { version: string }
     expect(installed.version).toBe(manifest.atlaswebCarrier.version)
     expect(manifest.atlaswebCarrier.version).toBe(hostPin)
     // runtimeSha256 = 构建实际读取（打进 bundle）的载体 runtime JS 字节 SHA256。

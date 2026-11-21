@@ -9,7 +9,7 @@ import { describe, expect, test } from 'bun:test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createDefaultReadonlySessionRuntime } from '@atlasharness/atlascode/web-session-runtime'
+import { createDefaultReadonlySessionRuntime } from '@atlaswork/atlascode/web-session-runtime'
 
 function seed(dir: string, sessionId: string, text: string): void {
   writeFileSync(join(dir, `${sessionId}.jsonl`), [

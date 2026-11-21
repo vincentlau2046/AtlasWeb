@@ -76,13 +76,13 @@ rmSync(stagingDir, { recursive: true, force: true })
 mkdirSync(stagingDir, { recursive: true })
 
 // -- A1 自包含 server bundle（一条启动命令）--
-// npmEntry + web-host + 构建时精确锁定的 @atlasharness/atlascode/
+// npmEntry + web-host + 构建时精确锁定的 @atlaswork/atlascode/
 // web-session-runtime 一起打成单文件 Node ESM bundle（非 node: 内建依赖
 // 全部内联；发布 manifest 零 npm runtime dependencies）。NODE_ENV 钉
 // production（同 vite 面：ambient NODE_ENV 不得改写发布字节）。
-const carrierRuntimeFile = Bun.resolveSync('@atlasharness/atlascode/web-session-runtime', join(repoRoot, 'packages', 'web-host'))
+const carrierRuntimeFile = Bun.resolveSync('@atlaswork/atlascode/web-session-runtime', join(repoRoot, 'packages', 'web-host'))
 const carrierManifest = JSON.parse(
-  readFileSync(join(repoRoot, 'node_modules', '@atlasharness', 'atlascode', 'package.json'), 'utf8'),
+  readFileSync(join(repoRoot, 'node_modules', '@atlaswork', 'atlascode', 'package.json'), 'utf8'),
 ) as { version: string }
 const runtimeSha256 = createHash('sha256').update(readFileSync(carrierRuntimeFile)).digest('hex')
 

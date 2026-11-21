@@ -2,9 +2,9 @@ import { describe, expect, test } from 'bun:test'
 
 // G1 消费冒烟：contract 面可达 + runtime 生命周期纪律（fake engine 注入形，
 // seeded sandbox；真实 engine 载体见 docs/upstream-pairing.md 登记缺口）。
-describe('upstream @atlasharness/atlascode consumption', () => {
+describe('upstream @atlaswork/atlascode consumption', () => {
   test('web-contract exposes v0 schema face', async () => {
-    const contract = await import('@atlasharness/atlascode/web-contract')
+    const contract = await import('@atlaswork/atlascode/web-contract')
     const keys = Object.keys(contract)
     expect(keys.length).toBeGreaterThanOrEqual(40)
     for (const name of ['BaselineEventSchema', 'FollowSessionRequestSchema', 'ErrorEventSchema']) {
@@ -13,7 +13,7 @@ describe('upstream @atlasharness/atlascode consumption', () => {
   })
 
   test('runtime enforces lifecycle discipline (pre-start reject, close idempotent, epoch)', async () => {
-    const { createReadonlySessionRuntime, WebSessionError } = await import('@atlasharness/atlascode/web-session-runtime')
+    const { createReadonlySessionRuntime, WebSessionError } = await import('@atlaswork/atlascode/web-session-runtime')
     const { mkdtempSync, rmSync } = await import('node:fs')
     const { tmpdir } = await import('node:os')
     const { join } = await import('node:path')

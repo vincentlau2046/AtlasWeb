@@ -15,7 +15,7 @@ subdirectory or worktree of AtlasCode.
 - The Atlas host keeps the product session runtime in-process and talks to
   browsers over loopback HTTP/WS with launch-token → signed-cookie auth.
 - AtlasWeb consumes the published upstream contract
-  (`@atlasharness/atlascode` subpaths `./web-contract` and
+  (`@atlaswork/atlascode` subpaths `./web-contract` and
   `./web-session-runtime`). It never imports `AtlasCode/src/**`, never copies
   schemas, and never reads product config directories directly.
 

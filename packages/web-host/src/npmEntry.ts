@@ -3,7 +3,7 @@
  *
  * 由 build-npm-package.ts 以 `bun build --target=node --format=esm` 打成
  * 单文件 `server/atlasweb.js`（Node shebang，非 node: 内建依赖——含构建时
- * 精确锁定的 @atlasharness/atlascode/web-session-runtime——全部内联 bundle，
+ * 精确锁定的 @atlaswork/atlascode/web-session-runtime——全部内联 bundle，
  * 安装目录零运行时依赖树）。bin.atlasweb → 本文件编译产物。
  *
  * 复用 launchCli `main(argv)`：loopback/cookie/Host/Origin、就绪协议、

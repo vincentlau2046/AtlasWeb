@@ -3,7 +3,7 @@
 AtlasWeb shell — the unified Web platform front-end for the Atlas product
 family (AtlasCode / AtlasOffice / AtlasComic). This package ships the built,
 read-only Code view bundle: session list, conversation replay, search, and
-live follow over the [AtlasCode](https://www.npmjs.com/package/@atlasharness/atlascode)
+live follow over the [AtlasCode](https://www.npmjs.com/package/@atlaswork/atlascode)
 web-session runtime.
 
 ## What's inside
@@ -20,7 +20,7 @@ web-session runtime.
 
 The npm package ships a self-contained Node entry (`bin.atlasweb` →
 `server/atlasweb.js`, an ESM bundle that embeds the pinned
-`@atlasharness/atlascode/web-session-runtime` — the installed package has no
+`@atlaswork/atlascode/web-session-runtime` — the installed package has no
 npm runtime dependencies and needs only Node ≥ 20; no Bun required):
 
 ```sh
@@ -56,7 +56,7 @@ standalone binary.
 
 `0.1.x` tracks the AtlasWeb shell foundation wave (T6-A). The package is
 built from the paired AtlasWeb repository; versions are release-contract
-pins paired against the AtlasCode carrier (`@atlasharness/atlascode`).
+pins paired against the AtlasCode carrier (`@atlaswork/atlascode`).
 
 ## License
 

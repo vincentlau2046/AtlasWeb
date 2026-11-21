@@ -2,7 +2,7 @@
  * AtlasWeb host session service (G1 skeleton).
  *
  * Wraps the upstream-published narrow readonly runtime
- * (`@atlasharness/atlascode/web-session-runtime`) behind an explicit,
+ * (`@atlaswork/atlascode/web-session-runtime`) behind an explicit,
  * fail-closed configuration seam:
  *
  * - scopes are always injected explicitly (scopeId ↔ storageDir mapping);
@@ -24,7 +24,7 @@ import {
   type ReadonlySessionLimits,
   type ReadonlySessionRuntime,
   type ReadonlySessionScopes,
-} from '@atlasharness/atlascode/web-session-runtime'
+} from '@atlaswork/atlascode/web-session-runtime'
 
 export interface SessionHostOptions {
   productId: string
