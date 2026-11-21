@@ -45,6 +45,8 @@ executionRoutes: POST 路由挂 auth fence 之后；bind 三元组 host 侧先�
 
 ## §2 B1 — 授权工作区、真实回合、回读
 
+**runTurn 真体形（用户裁定 2026-11-21，按 F4 建议采纳；合同 §0/§9 已记）**：AtlasWeb host `upstream.ts` 注入的 runTurn = spawn 已发布 `atlas -p <text> --resume <sessionId>` 子进程（cwd=授权 workspace 目录，stream-json 结构化协议）；stdout 增量→`emitDelta`（kernel emit 权威）；signal→kill 子进程（引擎真中止）→`cancelled`；exit 0→completed/非 0→failed；验收以内核证据（JSONL 回合记录）为准。`actorId()` 真源 = host 已认证连接身份注入；`'atlas-local-ambient'` 降为 CLI 车道零参默认（web 车道不可见）。kernel 侧伴生形（Main 呈批复核采认）：① deps 增 `emitDelta(text): void`（经既有 emit 权威，零新执法面；text 不进审批证据）；② `createExecutionComposition(options?: { runTurn?, actorId?, now? })` 注入形（零参默认行为零变更；entry.ts 新导出随 pack 腿）。**B2 审批链路必须经 kernel，禁复用 CLI control-request 审批面。**
+
 **文件**：新增 `packages/web-code/src/execution/executionController.ts`、`packages/web-code/src/views/Composer.tsx`；修改 `apps/atlasweb/src/main.tsx`（probe 后挂载写控件）、`packages/web-code/src/index.tsx`、`packages/web-code/src/controller.ts`（只读 API 不改签名，新增执行通道挂点）；新增 `packages/web-code/test/execution*.test.tsx`；新增 `e2e/first-wave-execution.pw.ts`（testMatch 沿用 `**/*.pw.ts`）。
 
 **接口**：`executionController.submit(text): { submitId }`（`crypto.randomUUID`，幂等键客户端产一次、重试复用）；`executionController.follow(): EventHandle`（cursor 续传，复用 §6 语义）；`Composer` 仅在 `capability.probe` = on 且当前 scope 已授权时渲染，否则零渲染（不是 disabled 占位）。

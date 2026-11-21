@@ -6,7 +6,7 @@
 
 - 事实源：AtlasCode `master` `9697b304`（发布 exports 仅 `./web-contract` 与只读 `./web-session-runtime`；`queryAgentLoop` 为模块导出但**不在发布 exports map = 非受支持 API**）。AtlasWeb `main` `4cfc2e1`。
 - 本文锁**要求与可测判据**；受支持出口的具体导出名、包路径与版本号由 AtlasCode Main 在确认归属时定名，本文不预填不存在的路由名，不把内部函数当可用接口。
-- 拓扑不变：浏览器/产品服务分进程，产品 host 与 kernel 实例**同进程**（平台设计 :135–150）；本文不引入子进程、远程执行或权限放宽；若实施证明唯有替代拓扑可推进，单列报用户裁定。
+- 拓扑不变：浏览器/产品服务分进程，产品 host 与 kernel 实例**同进程**（平台设计 :135–150）；本文不引入子进程、远程执行或权限放宽；若实施证明唯有替代拓扑可推进，单列报用户裁定。**用户裁定（2026-11-21，按 F4 建议采纳）**：B1 `runTurn` 真体 = AtlasWeb host 以**子进程** spawn 已发布 `atlas -p <text> --resume <sessionId>` CLI（stream-json 结构化协议；cwd=授权工作区目录；signal→kill 子进程 = 引擎真中止→`cancelled`；exit 0→completed/非 0→failed；验收以内核证据〔JSONL 回合记录〕为准，UI 标签不算）。前提采证：引擎内嵌 host 进程经 S4 判为深缝不可行；`-p` 车道 live 双证（生产 lane PONG 等）。伴生（随裁生效）：① §9「解析 CLI 文本」加边界注记——stream-json 为结构化 JSON 事件流协议，非文本解析；② **B2 审批链路必须经 kernel**，禁复用 CLI 内嵌 control-request 审批面（预盘点格 2 结论）。远程执行与权限放宽仍禁。
 
 ## §1 能力与生命周期分离
 
@@ -108,7 +108,7 @@ queue:    每 session 有界 FIFO（默认深度 16，B0 锁定值）
 
 ## §9 安装面与放行次序
 
-- 真实回合验收只从**候选安装包**的公开受支持出口启动（A1 入口同一装包）；源码 import、私引上游、解析 CLI 文本、浏览器直写 JSONL 一律不算数。
+- 真实回合验收只从**候选安装包**的公开受支持出口启动（A1 入口同一装包）；源码 import、私引上游、解析 CLI 文本、浏览器直写 JSONL 一律不算数。**边界注记（用户裁定 2026-11-21 随裁）**：经子进程 spawn 已发布 CLI 并消费其 stream-json 结构化 JSON 事件流 = 结构化协议，不属「解析 CLI 文本」；spawn 形以 §0 用户裁定为准（cwd 绑定授权工作区、signal 真中止、内核证据验收）。
 - 放行次序不变：本文送审 + AtlasCode Main 确认出口归属 → F4 锁定 → B1–B3 按锁定计划实施。若实施发现需放宽权限、变更安全矩阵或替代 F6 原义务，单列报用户裁定，未裁不进 B。
 
 ## §10 判别遗留（不阻塞锁定的登记项）
