@@ -12,7 +12,7 @@
 
 | 维度 | 只读面（现状，不回退） | 执行面（本文新增） |
 |---|---|---|
-| 载体 | `./web-session-runtime`，GET 四路由，ambient cookie | 新受支持出口，独立于只读包导出。**实施修订（2026-11-21 批复 @AtlasCode a62925c0）**：落点为同 subpath `./web-session-runtime` 扩具名导出 `createExecutionOutlet`（0.1.126候）——「独立」实质 = 独立受支持具名导出面 + 独立能力/授权生命周期（§0 定名权授 Main）；伴生条件：符号级 import 扫描、出口构造零引擎引导、只读消费面零漂移回归。**实施修订二（2026-11-21 S4 裁定）**：S0-R pack 合同「runtime bundle 零 zod external」锚定与执行面 zod 闭包冲突 → 执行出口以**同包第二 subpath** `./web-session-runtime/execution` 交付（自有 dist bundle，zod 内联自包含，零 npm runtime dependencies 不破 A1；runtime 面与 S0-R R-3 判别格逐字不动）——原「另立 subpath 无收益」论据被 pack 锚定冲突推翻；`atlaswebCarrier` 元数据/SRI 增记 execution 面 bundle 输入摘要 |
+| 载体 | `./web-session-runtime`，GET 四路由，ambient cookie | 新受支持出口，独立于只读包导出。**实施修订（2026-11-21 批复 @AtlasCode a62925c0）**：落点为同 subpath `./web-session-runtime` 扩具名导出 `createExecutionOutlet`（0.1.126候）——「独立」实质 = 独立受支持具名导出面 + 独立能力/授权生命周期（§0 定名权授 Main）；伴生条件：符号级 import 扫描、出口构造零引擎引导、只读消费面零漂移回归。**实施修订二（2026-11-21 S4 裁定）**：S0-R pack 合同「runtime bundle 零 zod external」锚定与执行面 zod 闭包冲突 → 执行出口以**同包第二 subpath** `./web-session-runtime/execution` 交付（自有 dist bundle，zod 内联自包含，零 npm runtime dependencies 不破 A1；runtime 面与 S0-R R-3 判别格逐字不动）——原「另立 subpath 无收益」论据被 pack 锚定冲突推翻；`atlaswebCarrier` 元数据/SRI 增记 execution 面 bundle 输入摘要。**组织面裁定（用户，2026-11-21）**：AtlasWeb 载体 pin 自 0.1.126 起锁 `@atlaswork` 组织（镜像面，与「本地测试安装统一走 @atlaswork」既定纪律同向）；bundle 字节与主面恒等（同 staging 仅 name），carrier sha256 值不变，npm integrity 双 org 各记 |
 | 授权 | scope 级读授权（一次性打开链接） | **逐工作区显式授权**，由 host 服务端记录；不从读授权推导，不从 `--scope` 自动获得 |
 | 生命周期 | host 启动即存在 | 能力默认关闭；`capability.probe` 显式探测；关闭时 UI 不渲染写控件，只读面照常 |
 | 失效 | 打开链接过期 → 401 | 工作区授权可独立吊销；吊销即时生效于新命令，运行中回合按 §4 取消规则收口 |
