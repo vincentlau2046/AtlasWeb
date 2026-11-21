@@ -91,15 +91,17 @@ interface PairingRollbackAttestation {
 
 const EXPECTED = {
   kind: 'pairing-rollback-attestation',
-  upgradeVersion: '0.1.125',
-  // 0.1.125 = G-D 载体根修（web-session-runtime list 面 title/messageCount
-  // 提取，AtlasWeb 依赖随升）：cli.js 锚与 0.1.124 **逐字节恒等（Δ=0）**
-  // 4f75289b…（改面全在 web-session-runtime 域，CLI 入口不引；SRI
-  // docs/sri/v0.1.125.md）；web-session-runtime 出口 88,845B 新锚
-  // 7e7e6f38…（0.1.124=85,213B）。downgrade 锚同帧恒等（Δ=0 波对）。
-  upgradeSha256Prefix: '4f75289b28edefcd',
-  downgradeVersion: '0.1.124',
-  downgradeSha256Prefix: '4f75289b28edefcd',
+  upgradeVersion: '0.1.127',
+  // 0.1.127 = B1 前置件 + 推送安全硬化波（emitDelta 缝 + 注入形组合根
+  // createExecutionComposition + F1/F3/F4/F5 kernel 硬化）：execution
+  // bundle 出口 278,747B 新锚 95dac0da…（runtime 面 7e7e6f38 恒等第五版；
+  // SRI docs/sri/v0.1.127.md）；cli.js 锚 18,239,284B
+  // b4dfd8a4…（0.1.126=18,238,298B 18c4211e…，kernel-execution 域嵌入
+  // 增量 +986B，源码级 CLI 车道零触碰——SRI 注记①）。downgrade 锚 =
+  // 0.1.126 cli.js（真实降级腿实测 @2026-11-21 配对链）。
+  upgradeSha256Prefix: 'b4dfd8a415687936',
+  downgradeVersion: '0.1.126',
+  downgradeSha256Prefix: '18c4211e4139906a',
 } as const
 
 function isHex(s: string, len: number): boolean {
