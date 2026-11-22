@@ -1,12 +1,13 @@
 // T6-A Task 9 RED: 构建产物 fetch 级烟测 + 只读词表负腿。
 // 词表唯一事实源 = docs/t6a-readonly-lexicon.md（```lexicon 块逐词读取——
-// 禁测试侧另立词表）。烟测链 = vite build → serve dist → fetch /auth/redeem
-// → 四面 API 全通 + 构建产物词表零命中。
+// 禁测试侧另立词表；§3 豁免/gate-shapes/dist-exemptions 块同样从本文解析，
+// 禁测试侧另立豁免清单）。烟测链 = vite build → serve dist → fetch
+// /auth/redeem → 四面 API 全通 + 构建产物词表零命中。
 import { describe, expect, test } from 'bun:test'
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { createServer, request as httpRequest_, type IncomingMessage, type ServerResponse } from 'node:http'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { cookieHeaderValue, httpRequest, launchHost, makeSeedDir, redeemForCookie, rmDir, stdTranscript } from './e2e/helpers'
 
@@ -48,6 +49,37 @@ function parseLexicon(doc: string): string[] {
   return match[1]!.split('\n').map(line => line.trim()).filter(line => line.length > 0)
 }
 
+/** Parse a generic `fenced` block from the lexicon doc (one entry per line). */
+function parseFenced(doc: string, name: string): string[] {
+  const match = new RegExp('```' + name + '\\n([\\s\\S]*?)\\n```').exec(doc)
+  if (match === null) return []
+  return match[1]!.split('\n').map(line => line.trim()).filter(line => line.length > 0)
+}
+
+/**
+ * §3 exemptions block → Set of `word|repo-relative-path` rows (single source
+ * of truth is the lexicon doc itself — the test must not keep its own list).
+ */
+function parseExemptions(doc: string): Set<string> {
+  return new Set(parseFenced(doc, 'exemptions').map(row => row.replace(/\\/g, '/')))
+}
+
+/** §3 dist-exemptions block → literal forms stripped from bundle text before scanning. */
+function parseDistExemptions(doc: string): string[] {
+  return parseFenced(doc, 'dist-exemptions')
+}
+
+/** §3 gate-shapes block → [repo-relative file, code shape] pairing-gate rows. */
+function parseGateShapes(doc: string): Array<{ file: string; shape: string }> {
+  return parseFenced(doc, 'gate-shapes').map(row => {
+    const sep = row.indexOf('|')
+    if (sep < 0) throw new Error(`malformed gate-shapes row: ${row}`)
+    return { file: row.slice(0, sep), shape: row.slice(sep + 1) }
+  })
+}
+
+const repoRel = (file: string): string => relative(REPO, file).replace(/\\/g, '/')
+
 /** Recursively list files under a directory (skips node_modules). */
 function walk(dir: string): string[] {
   if (!existsSync(dir) || !statSync(dir).isDirectory()) return []
@@ -76,6 +108,15 @@ function scan(words: string[], files: string[]): Array<{ word: string; file: str
   return hits
 }
 
+/** Scan raw text for lexicon words (dist leg: minified bundles are one long line). */
+function scanText(words: string[], file: string, text: string): Array<{ word: string; file: string }> {
+  const hits: Array<{ word: string; file: string }> = []
+  for (const word of words) {
+    if (text.includes(word)) hits.push({ word, file })
+  }
+  return hits
+}
+
 describe('只读词表负腿（docs/t6a-readonly-lexicon.md 预注册）', () => {
   test('词表落档非空且含锚词（预注册纪律——禁空表过门）', () => {
     const doc = readFileSync(LEXICON_DOC, 'utf8')
@@ -86,12 +127,25 @@ describe('只读词表负腿（docs/t6a-readonly-lexicon.md 预注册）', () =>
     }
   })
 
-  test('source 扫描域零命中（豁免表外）', () => {
-    const words = parseLexicon(readFileSync(LEXICON_DOC, 'utf8'))
+  test('source 扫描域零命中（§3 exemptions 块 (词, 文件) 行过滤后）', () => {
+    const doc = readFileSync(LEXICON_DOC, 'utf8')
+    const words = parseLexicon(doc)
+    const exemptions = parseExemptions(doc)
+    expect(exemptions.size).toBeGreaterThanOrEqual(5) // 豁免块在场（禁空表静默放行）
     const files = SCAN_DIRS.flatMap(dir => walk(dir))
     expect(files.length).toBeGreaterThan(5)
-    const hits = scan(words, files)
+    // 豁免行 = 逐文件精确点名：word + repo 相对路径全等才消费（禁目录级宽匹配）。
+    const hits = scan(words, files).filter(hit => !exemptions.has(`${hit.word}|${repoRel(hit.file)}`))
     expect(hits).toEqual([])
+  })
+
+  test('配对正腿：§3 gate-shapes 门控码形逐条在场（码形消失 = 豁免失效回 RED）', () => {
+    const shapes = parseGateShapes(readFileSync(LEXICON_DOC, 'utf8'))
+    expect(shapes.length).toBeGreaterThanOrEqual(3)
+    for (const { file, shape } of shapes) {
+      const source = readFileSync(join(REPO, file), 'utf8')
+      expect({ file, present: source.includes(shape) }).toEqual({ file, present: true })
+    }
   })
 })
 
@@ -116,11 +170,20 @@ describe('构建产物烟测（vite build → serve dist → fetch）', () => {
     expect(bundle).toContain('conversation')
   })
 
-  test('bundle 构建产物零词表命中', () => {
-    const words = parseLexicon(readFileSync(LEXICON_DOC, 'utf8'))
+  test('bundle 构建产物零词表命中（§3 dist-exemptions 字面量剥除后）', () => {
+    const doc = readFileSync(LEXICON_DOC, 'utf8')
+    const words = parseLexicon(doc)
+    const literals = parseDistExemptions(doc)
+    expect(literals.length).toBeGreaterThanOrEqual(5) // 字面量豁免面在场（禁 whole-bundle 宽豁免）
     const files = walk(dist)
     expect(files.length).toBeGreaterThan(1)
-    const hits = scan(words, files)
+    // minified bundle 为单行长行——禁行级过滤（会整行误豁免），逐文件全文
+    // 剥除点名字面量后再扫词（表外命中仍 RED）。
+    const hits = files.flatMap(file => {
+      let text = readFileSync(file, 'utf8')
+      for (const literal of literals) text = text.split(literal).join('')
+      return scanText(words, file, text)
+    })
     expect(hits).toEqual([])
   })
 

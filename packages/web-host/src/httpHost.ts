@@ -291,6 +291,167 @@ export function createHttpHost(options: HttpHostOptions): Server {
           sendJson(res, result.status, result.body)
           return
         }
+        // B 附表 §3 执行只读查询面 + 事件流（GET，auth fence 之后）。
+        //  - /execution/events：SSE 执行流（首帧 = replay 三态 control 帧，
+        //    其后 = 本会话事件；cursor 语义复用 §6，断线增量恰一次）。
+        //  - /execution/queue：队列读投影（纯视图，零执法）。
+        //  - /execution/approvals：服务端审批证据查询（workspace 强制限定，
+        //    bind 不限定的跨域读取零路径）。
+        // workspaceId 一律授权对表（未授权 403，事件/证据零泄露）；缺参 400。
+        if (req.method === 'GET' && path.startsWith('/execution/')) {
+          if (executionRoutes === null) {
+            sendJson(res, 404, { error: 'not found' })
+            return
+          }
+          const workspaceAuth = options.execution!.workspaceAuth
+          const sub = path.slice('/execution/'.length)
+          const ws = url.searchParams.get('workspaceId') ?? ''
+          if (ws.length === 0) {
+            sendJson(res, 400, { error: 'workspaceId required' })
+            return
+          }
+          if (!workspaceAuth.isGranted(ws)) {
+            sendJson(res, 403, { error: 'workspace not granted', code: 'workspaceNotGranted' })
+            return
+          }
+          if (sub === 'queue') {
+            const sessionId = url.searchParams.get('sessionId') ?? ''
+            if (sessionId.length === 0) {
+              sendJson(res, 400, { error: 'sessionId required' })
+              return
+            }
+            sendJson(res, 200, executionRoutes.queueSnapshot(ws, sessionId))
+            return
+          }
+          if (sub === 'approvals') {
+            const sessionId = url.searchParams.get('sessionId') ?? undefined
+            const turnId = url.searchParams.get('turnId') ?? undefined
+            sendJson(res, 200, {
+              workspaceId: ws,
+              entries: executionRoutes.approvalEvidence(ws, {
+                ...(sessionId !== undefined ? { sessionId } : {}),
+                ...(turnId !== undefined ? { turnId } : {}),
+              }),
+            })
+            return
+          }
+          if (sub === 'events') {
+            const sessionId = url.searchParams.get('sessionId') ?? ''
+            if (sessionId.length === 0) {
+              sendJson(res, 400, { error: 'sessionId required' })
+              return
+            }
+            const cursor = url.searchParams.get('cursor') ?? undefined
+            res.writeHead(200, {
+              'content-type': 'text/event-stream; charset=utf-8',
+              'cache-control': 'no-cache',
+              connection: 'keep-alive',
+            })
+            res.flushHeaders()
+            let closed = false
+            let finish: () => void = () => {}
+            const finished = new Promise<void>((resolve) => {
+              finish = resolve
+            })
+            const onClientClose = (): void => {
+              if (closed) return
+              closed = true
+              finish()
+            }
+            req.on('close', onClientClose)
+            res.on('close', onClientClose)
+            // 写链：逐帧串行（顺序 = 入链序）；写回 false → 等 drain / close，
+            // 单帧等待超 slowConsumerMs → fail-closed 强断（同 follow 慢消费者形）。
+            let chain: Promise<void> = Promise.resolve()
+            const enqueue = (frame: unknown): void => {
+              const chunk = `data: ${JSON.stringify(frame)}\n\n`
+              chain = chain.then(async () => {
+                if (closed || res.writableEnded || res.destroyed) return
+                const ok = res.write(chunk) || await new Promise<boolean>((resolve) => {
+                  let settled = false
+                  const timer = setTimeout(() => {
+                    if (settled) return
+                    settled = true
+                    cleanup()
+                    resolve(false)
+                  }, options.followSlowConsumerMs ?? 30_000)
+                  const done = (value: boolean) => (): void => {
+                    if (settled) return
+                    settled = true
+                    clearTimeout(timer)
+                    cleanup()
+                    resolve(value)
+                  }
+                  const cleanup = (): void => {
+                    res.off('drain', onDrain)
+                    res.off('close', onGone)
+                    res.off('error', onGone)
+                  }
+                  const onDrain = done(true)
+                  const onGone = done(false)
+                  res.once('drain', onDrain)
+                  res.once('close', onGone)
+                  res.once('error', onGone)
+                })
+                if (!ok) {
+                  // 慢消费者/连接消失：强断（destroy 丢弃待发缓冲，零无限挂住）
+                  if (!res.destroyed) res.destroy()
+                  onClientClose()
+                }
+              })
+            }
+            // 订阅先建、replay 后取（防缝）：订阅至 replay 间的新事件缓冲，
+            // 待 replay 帧入链后按事件 id 去重补入——增量恰一次（§6）。
+            const buffered: unknown[] = []
+            let streaming = false
+            const matches = (event: unknown): boolean => {
+              const bind = (event as { bind?: { workspaceId?: unknown; sessionId?: unknown } }).bind
+              return bind?.workspaceId === ws && bind?.sessionId === sessionId
+            }
+            const unsubscribe = executionRoutes.subscribe((event) => {
+              if (!matches(event)) return
+              if (!streaming) {
+                buffered.push(event)
+                return
+              }
+              enqueue(event)
+            })
+            // 首帧 = replay 三态原形（kind ∈ baseline|delta|expired；事件帧由
+            // type 字段区分，两形零歧义）。勿包裹改名：ExecutionReplay 自带
+            // kind，展开在后会覆盖任何外层标记。
+            const replay = executionRoutes.replay(ws, sessionId, cursor)
+            enqueue(replay)
+            const seen = new Set<string>()
+            for (const event of replay.events) {
+              const id = (event as { id?: unknown }).id
+              if (typeof id === 'string') seen.add(id)
+            }
+            for (const event of buffered) {
+              const id = (event as { id?: unknown }).id
+              if (typeof id === 'string') {
+                if (seen.has(id)) continue
+                seen.add(id)
+              }
+              enqueue(event)
+            }
+            buffered.length = 0
+            streaming = true
+            try {
+              // 流生命周期 = 客户端连接生命周期（断线 ≠ 取消，§4）：本处理
+              // 悬挂至 close/fail-closed，订阅随之释放。
+              await finished
+            } finally {
+              req.off('close', onClientClose)
+              res.off('close', onClientClose)
+              unsubscribe()
+              closed = true
+              if (!res.destroyed && !res.writableEnded) res.end()
+            }
+            return
+          }
+          sendJson(res, 404, { error: 'not found' })
+          return
+        }
         // S0-R4 件 A 第四面：search（query 界 1-256 码点 = 契约面，host 预验
         // fail-closed；runtime 信任上层已验——readonlyRuntime.d.ts:98）。
         if (req.method === 'GET' && path === '/sessions/search') {

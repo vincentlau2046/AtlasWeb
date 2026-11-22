@@ -41,6 +41,7 @@ import type { WorkspaceAuthorizer } from './workspaceAuth'
 export type ExecutionResult = WebExecutionEvent | WebExecutionError
 /** 单接触点纪律（§1）：仓内其余域的类型面一律经本薄适配取（re-export），子路径 specifier 不外溢。 */
 export type {
+  ExecutionReplay,
   WebExecutionCommand,
   WebExecutionEvent,
   WebExecutionError,

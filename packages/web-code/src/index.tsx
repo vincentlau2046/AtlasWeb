@@ -4,7 +4,9 @@
 // useSessions 标准 prop 契约，Task 7 session-face 冻结形）；③ 槽位注册
 // （sidebar 单槽 = NavigationColumn；main keyed 'conversation' =
 // ConversationView）；④ 会话服务暴露（ctx.reflect.provide('conversation')）。
-// 只读红线：本包零对话输入面/审批面词汇、零写路径（会话取消等写操作不存在）。
+// 只读红线（T6-A）：默认零写路径。B 附表 §3 B2 开启门控例外：config.execution
+// 注入时挂 ExecutionController + Composer（排队区/待批卡/输入面），probe=off
+// 或未注入 → 执行面零渲染（纯只读回归腿保持）。
 // W-UI-V G-B：web-code-* 视图类样式表（dsh token 词汇）——此前 0 样式命中。
 import './views/views.css'
 import type { ObservableSnapshot } from '@atlasweb/web-store'
@@ -16,20 +18,32 @@ import { WebCodeController,
 import type { ConversationModel } from './projection.ts'
 import { createSessionScopeAdapter } from './sessionScope.ts'
 import { readAnchor } from './readingAnchor.ts'
+import { ExecutionController,
+  type ExecutionBinding, type ExecutionStatusModel, type ExecutionTransport } from './execution/executionController.ts'
 import { NavigationColumnView } from './views/NavigationColumnView.tsx'
 import { ConversationView } from './views/ConversationView.tsx'
+import { Composer } from './views/Composer.tsx'
 
 export { WebCodeController } from './controller.ts'
 export type {
   OpenTarget, SessionListModel, SessionRowVM, SearchModel, SearchResultVM,
   SessionTitleEntry, SessionTitleState, TargetMessageState,
 } from './controller.ts'
+export { ExecutionController, createHttpExecutionTransport } from './execution/executionController.ts'
+export type {
+  ExecutionBinding, ExecutionDecision, ExecutionPhase, ExecutionQueueVM,
+  ExecutionStatusModel, ExecutionTransport, PendingApprovalVM, SettledApprovalVM,
+  SettledDecision,
+} from './execution/executionController.ts'
 export { applyFollowEvent, emptyConversation, modelFromProjection } from './projection.ts'
 export type { ActivityBlockVM, AnnotationVM, BlockVM, ConversationModel, MessageVM, TextBlockVM } from './projection.ts'
 export { computeVisibleRange, REPLAY_OVERSCAN, REPLAY_WINDOW_SIZE } from './windowing.ts'
 export type { WindowRange } from './windowing.ts'
 export { NavigationColumnView } from './views/NavigationColumnView.tsx'
 export { ConversationView } from './views/ConversationView.tsx'
+export { Composer } from './views/Composer.tsx'
+export { QueueList } from './views/QueueList.tsx'
+export { ApprovalCard } from './views/ApprovalCard.tsx'
 
 /** Entry configuration (cordis plugin config channel; Task 9 wires the real values). */
 export interface WebCodeConfig {
@@ -42,6 +56,15 @@ export interface WebCodeConfig {
   initialSessionId?: string
   /** A3 阅读锚持久化面（浏览器 = sessionStorage；缺省/null = 不读写）。 */
   anchorStorage?: Storage | null
+  /**
+   * B2 执行通道（可选；缺省 = 纯只读，执行面零渲染）。transport 注入 +
+   * binding 闭包（workspace 发现面在组合根解决——workspaceAuth 无 list 面，
+   * 本包不猜）。
+   */
+  execution?: {
+    transport: ExecutionTransport
+    binding(): ExecutionBinding | null
+  }
 }
 
 /** The controller service face registered as ctx 'conversation'. */
@@ -70,6 +93,8 @@ interface NavStandardProps {
 interface ConversationStandardProps {
   useConversation: <S>(sel: (snapshot: ConversationModel) => S) => S
   useTargetMessage: <S>(sel: (snapshot: TargetMessageState | null) => S) => S
+  /** B2：执行面状态（config.execution 注入时才有）。 */
+  useExecution?: <S>(sel: (snapshot: ExecutionStatusModel) => S) => S
 }
 
 /** Minimal context face the entry needs (stub-friendly structural form). */
@@ -105,6 +130,16 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
   }
   const controller = new WebCodeController(connection)
   await controller.refreshSessions()
+
+  // B2 执行通道：可选注入，缺省零渲染。绑定 = workspace+当前选中会话；
+  // 会话切换即重 attach（probe → 按新绑定重开事件流）。
+  let execution: ExecutionController | null = null
+  if (config.execution !== undefined) {
+    execution = new ExecutionController(config.execution.transport, { binding: config.execution.binding })
+    await execution.attach()
+    const unsubscribeExecution = controller.sessionId.subscribe(() => { void execution?.attach() })
+    ctx.effect?.(() => unsubscribeExecution)
+  }
 
   // A3 刷新恢复：URL ?session=<id> → 打开该会话并恢复阅读锚（锚指向的
   // 消息不存在 → 视图 anchorMissed 明示面，不跳其他会话）。scope 单一
@@ -178,12 +213,17 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
     key: 'conversation',
     id: 'web-code.conversation',
     label: 'Conversation',
-    inject: (): { hooks: { conversation: ObservableSnapshot<ConversationModel>; targetMessage: ObservableSnapshot<TargetMessageState | null> } } => ({
-      hooks: { conversation: controller.conversation, targetMessage: controller.targetMessage },
+    inject: (): { hooks: { conversation: ObservableSnapshot<ConversationModel>; targetMessage: ObservableSnapshot<TargetMessageState | null>; execution?: ObservableSnapshot<ExecutionStatusModel> } } => ({
+      hooks: {
+        conversation: controller.conversation,
+        targetMessage: controller.targetMessage,
+        ...(execution !== null ? { execution: execution.status } : {}),
+      },
     }),
   }, function Conversation(standard: ConversationStandardProps) {
     const conversation = standard.useConversation(snapshot => snapshot)
     const target = standard.useTargetMessage(snapshot => snapshot)
+    const exec = standard.useExecution !== undefined ? standard.useExecution(snapshot => snapshot) : null
     // 目标与会话绑定：只把属于当前会话的定位锚传给视图（不跨会话泄露）。
     const bound = target !== null && target.sessionId === conversation.sessionId
     // A3 锚缺席明示：恢复目标（绑定了消息）在已加载消息中不存在 → 提示
@@ -191,15 +231,29 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
     const anchorMissed = bound && conversation.messages.length > 0
       && !conversation.messages.some(message => message.id === target.messageId)
     return (
-      <ConversationView
-        conversation={conversation}
-        targetMessageId={bound ? target.messageId : undefined}
-        targetGeneration={bound ? target.generation : undefined}
-        targetOffsetPx={bound ? target.offsetPx : undefined}
-        anchorMissed={anchorMissed || undefined}
-        anchorStorage={config.anchorStorage ?? null}
-        onRetry={() => { void controller.retry() }}
-      />
+      <>
+        <ConversationView
+          conversation={conversation}
+          targetMessageId={bound ? target.messageId : undefined}
+          targetGeneration={bound ? target.generation : undefined}
+          targetOffsetPx={bound ? target.offsetPx : undefined}
+          anchorMissed={anchorMissed || undefined}
+          anchorStorage={config.anchorStorage ?? null}
+          onRetry={() => { void controller.retry() }}
+        />
+        {execution !== null && exec !== null && (
+          <Composer
+            phase={exec.phase}
+            queue={exec.queue}
+            pendingApprovals={exec.pendingApprovals}
+            settledApprovals={exec.settledApprovals}
+            onSubmit={text => { void execution!.submit(text).catch(() => {}) }}
+            onCancel={turnId => { void execution!.cancel(turnId).catch(() => {}) }}
+            onRemove={turnId => { void execution!.remove(turnId).catch(() => {}) }}
+            onDecide={(approvalId, decision) => { void execution!.decide(approvalId, decision).catch(() => {}) }}
+          />
+        )}
+      </>
     )
   })
 
@@ -217,6 +271,7 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
       disposeNav()
       disposeMain()
       rootHandle()
+      execution?.dispose()
       return controller.dispose()
     },
   } satisfies ConversationService & { dispose(): Promise<void> })

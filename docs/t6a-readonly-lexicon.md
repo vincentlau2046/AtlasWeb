@@ -44,11 +44,56 @@ checkpointRollback
 |---|---|---|---|---|
 | 1 | `onSubmit` | `packages/web-code/src/views/NavigationColumnView.tsx` | **不入词表，登记即可**（Task 8 审计 verdict ⑥ 豁免行） | React 表单提交事件名——搜索框 form 的 handler，非对话输入面标识符；与词表词 `submitInput` 无标识符碰撞 |
 | 2 | 对话词汇于 transcript 数据 | `**/test/**`（seeded fixtures、e2e helpers） | 扫描域排除（§2） | 投影数据面：会话内容可合法含 prompt/消息字样，属回放显示对象非 bundle 行为面 |
+| 3 | `approval`（标识符） | `packages/web-code/src/execution/executionController.ts`、`packages/web-code/src/index.tsx`、`packages/web-code/src/views/ApprovalCard.tsx`、`packages/web-code/src/views/Composer.tsx`（**逐文件点名，禁目录级扩用**） | **命中按 (词， 文件) 行豁免**（B 附表 §3 B2 执行通道；Atlas-reveiw 审计裁定 2026-11-22） | kernel wire 词汇（`approval.decide`/`approval.requested`/`approval.settled`、payload 键 `approvalId`、归属 turn 锚 `data-exec-approval`）+ 错误明示文案。**理由绑定门控条件**：执行面仅 `config.execution` 注入时挂载，probe=off / 未注入 → 零渲染（纯只读回归腿保持）——下方 `gate-shapes` 块码形在场是豁免生效前提，码形消失即豁免失效回 RED |
+| 4 | `composer`（标识符） | `packages/web-code/src/views/Composer.tsx`（**逐文件点名**） | 同上 | B2 执行面输入组件类名/锚点（`webcode-exec-composer`、`data-exec-composer`）；同受 `config.execution` 门控 |
 
-（空行兜底：无其他豁免。新增豁免须过审计——本表为审计抽验对象。）
+**dist 豁免面（字面量形点名，非 whole-bundle 宽豁免）**：B2 在 dist 的字面量残留仅为
+下述 wire 词汇 / payload 键 / DOM 锚点 / 类名 / 错误文案片段——dist 负腿先剥除
+这些字面量再扫描，剥后零命中即 GREEN；出现表外词表命中仍 RED：
+
+```dist-exemptions
+approval.decide
+approval.requested
+approval.settled
+approvalId
+approval "
+data-exec-approval
+webcode-exec-approval
+webcode-exec-composer
+data-exec-composer
+```
+
+**src 豁免（机器可读，与上表行 3/4 一一对应——测试从本块解析，禁测试侧另立清单）**：
+
+```exemptions
+approval|packages/web-code/src/execution/executionController.ts
+approval|packages/web-code/src/index.tsx
+approval|packages/web-code/src/views/ApprovalCard.tsx
+approval|packages/web-code/src/views/Composer.tsx
+composer|packages/web-code/src/views/Composer.tsx
+```
+
+**门控码形（配对正腿——测试断言下列码形在场，消失即 RED，豁免随之失效）**：
+
+```gate-shapes
+packages/web-code/src/views/Composer.tsx|if (phase !== 'ready') return null
+packages/web-code/src/index.tsx|config.execution !== undefined
+packages/web-code/src/execution/executionController.ts|if (binding === null) {
+```
+
+（空行兜底：无其他豁免。新增豁免须过审计——本表为审计抽验对象。B3 新命中面
+落码时按同程序另行走审，禁预扩豁免。）
 
 ## 4. 判据
 
-负腿 = 扫描域内词表词命中数为 0（豁免表处置列「不入词表」的形不在
-扫描词表内，不构成命中）。命中任何一词 = RED，修复面 = 改写源码或
-（数据面误伤）扩排除面——后者须在本文 §2/§3 留痕。
+负腿 = 扫描域内词表词命中数为 0，其中：
+
+- **src 腿**：命中按 §3 `exemptions` 块的 (词, 文件) 行精确过滤后为 0
+  （逐文件点名——目录级/文件级宽匹配不消费豁免行，表外命中仍 RED）。
+- **dist 腿**：构建产物先按 §3 `dist-exemptions` 块逐字面量剥除再扫描，
+  剥后命中数为 0（表外命中仍 RED——minified 单行长行禁行级过滤）。
+- **配对正腿**：§3 `gate-shapes` 块码形须逐条在场——门控码形消失即 RED
+  （豁免与门控配对生效，防「豁免留下、门控拆走」漂移）。
+
+命中任何一词（豁免过滤/剥除后）= RED，修复面 = 改写源码或（数据面误伤）
+扩排除面——后者须在本文 §2/§3 留痕。

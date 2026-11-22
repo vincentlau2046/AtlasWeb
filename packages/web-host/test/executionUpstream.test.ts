@@ -208,7 +208,14 @@ describe('单接触点纪律（自动执法腿）', () => {
             .replace(/\/\*[\s\S]*?\*\//g, '')
             .replace(/^\s*\/\/.*$/gm, '')
           const isUpstream = p.endsWith(join('execution', 'upstream.ts'))
-          const hit = text.includes('web-session-runtime/execution') || text.includes('createExecutionComposition')
+          // 禁集 = module specifier + 具名符号双判（B1 审计登记 c 增补：
+          // createExecutionOutlet / ExecutionOutlet 两 capability-entry 符号；
+          // WebExecution* 数据类型不入禁集——executionRoutes 经 './upstream'
+          // type re-export 为合法通道）。
+          const hit = text.includes('web-session-runtime/execution')
+            || text.includes('createExecutionComposition')
+            || text.includes('createExecutionOutlet')
+            || text.includes('ExecutionOutlet')
           if (hit && !isUpstream) violations.push(p)
         }
       }
