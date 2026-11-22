@@ -99,8 +99,11 @@ export function createSpawnCliTurnRunner(options: {
     }
     const child = doSpawn(
       cliPath,
-      ['-p', deps.text, '--resume', deps.bind.sessionId],
-      { cwd: dir, signal: deps.signal },
+      ['-p', deps.text, '--resume', deps.bind.sessionId, '--output-format', 'stream-json', '--verbose'],
+      // stdin 必闭（'ignore'）：-p 回合不闭 stdin → 真 CLI 挂起等输入，close
+      // 永不 firing → kernel 不 settle（r-20261122-atlasweb-b2-gate 单红钉格
+      // 定谳：stdin:ignore / child.stdin.end() 即愈）。
+      { cwd: dir, signal: deps.signal, stdio: ['ignore', 'pipe', 'pipe'] },
     )
     // stdout 增量 → emitDelta（stream-json 按行解析 assistant text 块；
     // 非法行跳过——CLI stderr 混流不腐蚀回合记录）。
