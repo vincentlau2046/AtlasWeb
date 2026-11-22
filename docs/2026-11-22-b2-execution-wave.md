@@ -14,6 +14,22 @@ B 附表 §3 B2 web-code/host 侧落码收口。本文件随呈批链归档，�
 4. **收口**：commit `3ade5f9`（16 文件，单原子）；干净树全仓
    **502 pass / 0 fail / 1 skip**（词表 src 腿、dist 腿、格 J G2 全翻绿）。
 
+## 1.5 e2e gate 闭环（r-20261122-atlasweb-b2-gate）
+
+- **首判 GATE-FAIL 单红钉格**：spawn runner 真体未闭 stdin → 真 CLI `-p` 回合
+  挂起、close 永不 firing → kernel 不 settle → turn.completed 零发射
+  （lane 定谳链：脱离 server 复刻 + 跨版本复现 + stdin:ignore 即愈）。
+- **机械修**：commit `e062138`——spawn 加 `stdio: ['ignore','pipe','pipe']` +
+  argv 补 `--output-format stream-json --verbose`（与 lane 验证最小修形逐字一致）。
+- **复验翻转 GATE-PASS**：Leg A 19/19（真 CLI 回合自然完成 + turn.completed 达流）、
+  SSE 活帧四帧齐至（accepted-2→cancelled-2→delta-1→completed-1）、delta 缝闭环
+  （payload text 非空）、Leg B/C wire 探针 18/18 独立复核。
+- **校准注记（判定单 §5 更正）**：首轮判定单将 A-sse-cancelled-event 腿红归入
+  stdin 缺陷 manifestations 属归因过宽——该腿实为探针订阅时序 vs 合同形
+  （无 cursor → baseline 空 = 订阅前事件不回放，首轮 debug-sse 已定谳合同行为）；
+  stdin 缺陷以 A-real-turn-completed 单腿为充分钉格。
+- 环境注记：格 D searchSessions 8931 外部占用红（零 B2 归因）→ 硬化挂账 #405。
+
 ## 2. 豁免面（docs/t6a-readonly-lexicon.md §3）
 
 - src：`approval`×4 文件 + `composer`×1 文件，`exemptions` 块机器可读
