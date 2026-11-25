@@ -19,7 +19,7 @@ import type { ConversationModel } from './projection.ts'
 import { createSessionScopeAdapter } from './sessionScope.ts'
 import { readAnchor } from './readingAnchor.ts'
 import { ExecutionController,
-  type ExecutionBinding, type ExecutionStatusModel, type ExecutionTransport } from './execution/executionController.ts'
+  type ExecutionStatusModel, type ExecutionTransport } from './execution/executionController.ts'
 import { NavigationColumnView } from './views/NavigationColumnView.tsx'
 import { ConversationView } from './views/ConversationView.tsx'
 import { Composer } from './views/Composer.tsx'
@@ -58,12 +58,13 @@ export interface WebCodeConfig {
   anchorStorage?: Storage | null
   /**
    * B2 执行通道（可选；缺省 = 纯只读，执行面零渲染）。transport 注入 +
-   * binding 闭包（workspace 发现面在组合根解决——workspaceAuth 无 list 面，
-   * 本包不猜）。
+   * binding 闭包 = 组合根 workspace 意图（`{ workspaceId } | null`——workspace
+   * 发现面在组合根解决，workspaceAuth 无 list 面本包不猜；会话维由本包以
+   * 当前选中会话组装成完整 ExecutionBinding，attach 时点读快照）。
    */
   execution?: {
     transport: ExecutionTransport
-    binding(): ExecutionBinding | null
+    binding(): { workspaceId: string } | null
   }
 }
 
@@ -131,11 +132,20 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
   const controller = new WebCodeController(connection)
   await controller.refreshSessions()
 
-  // B2 执行通道：可选注入，缺省零渲染。绑定 = workspace+当前选中会话；
-  // 会话切换即重 attach（probe → 按新绑定重开事件流）。
+  // B2 执行通道：可选注入，缺省零渲染。绑定组装：workspace 维 = 组合根意图
+  //（config.execution.binding()），会话维 = 当前选中会话（controller.sessionId
+  // 唯一真源，attach 时点读快照——无 URL 回读竞态）；任一维缺 → null →
+  // disabled。会话切换即重 attach（probe → 按新绑定重开事件流）。
   let execution: ExecutionController | null = null
   if (config.execution !== undefined) {
-    execution = new ExecutionController(config.execution.transport, { binding: config.execution.binding })
+    execution = new ExecutionController(config.execution.transport, {
+      binding: () => {
+        const workspace = config.execution!.binding()
+        const sessionId = controller.sessionId.getSnapshot()
+        if (workspace === null || sessionId === null) return null
+        return { workspaceId: workspace.workspaceId, sessionId }
+      },
+    })
     await execution.attach()
     const unsubscribeExecution = controller.sessionId.subscribe(() => { void execution?.attach() })
     ctx.effect?.(() => unsubscribeExecution)

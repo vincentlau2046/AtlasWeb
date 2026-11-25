@@ -16,7 +16,7 @@ import '@atlasweb/web-shell/base.css'
 import { provideThemeRuntime, installThemeStyles } from '@atlasweb/web-theme/client'
 import { createThemeSettingsStore, provideBrand } from '@atlasweb/web-brand'
 import { apply as applyLayout } from '@atlasweb/web-layout'
-import { apply as applyCode } from '@atlasweb/web-code'
+import { apply as applyCode, createHttpExecutionTransport } from '@atlasweb/web-code'
 import type { ThemeSettingsStorage } from '@atlasweb/web-brand'
 
 /** Browser storage adapter (durable theme settings transport backend). */
@@ -57,6 +57,19 @@ async function boot(): Promise<() => void> {
   // A3：URL ?session=<id> = 当前选择提示（读取不等于授权）；随会话切换
   // 由 web-code 回写。阅读锚 = sessionStorage（同标签页刷新恢复）。
   const initialSessionId = new URL(window.location.href).searchParams.get('session') ?? undefined
+  // B1 执行通道挂载（B 附表 §2「probe 后挂载写控件」——probe 本体在 web-code
+  // ExecutionController.attach 内）：组合根 workspace 意图 = 打开链接
+  // ?workspace=<id> hint（裁定 R1——默认选择最小形；workspaceAuth 列表面
+  // 候 B3/接线工单）。缺省（无 hint）= 纯只读，执行面零渲染（合同 §10）。
+  // 授权不在客户端裁决：服务端逐命令对表 workspaceAuth（E1），未授权 id
+  // 全命令 403。
+  const executionWorkspace = new URL(window.location.href).searchParams.get('workspace')
+  const execution = executionWorkspace !== null && executionWorkspace.length > 0
+    ? {
+        transport: createHttpExecutionTransport({ baseUrl: window.location.origin }),
+        binding: () => ({ workspaceId: executionWorkspace }),
+      }
+    : undefined
   try {
     await ctx.plugin({
       apply: applyCode,
@@ -68,6 +81,7 @@ async function boot(): Promise<() => void> {
       },
       ...(initialSessionId !== undefined ? { initialSessionId } : {}),
       anchorStorage: typeof sessionStorage !== 'undefined' ? sessionStorage : null,
+      ...(execution !== undefined ? { execution } : {}),
     })
   } catch (error) {
     // A1 安装错误视图：兑换失败（打开链接无效/已过期且无 ambient cookie）
