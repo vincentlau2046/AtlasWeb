@@ -51,6 +51,34 @@ describe('Composer · probe gate', () => {
   })
 })
 
+describe('Composer · 命令错误明示面（终审 Issue 1 修复）', () => {
+  test('commandError 在场 → data-exec-error 行渲染服务端 message；缺席 → 零渲染', () => {
+    const withError = renderToString(
+      <Composer
+        phase='ready'
+        queue={status().queue}
+        pendingApprovals={[]}
+        settledApprovals={[]}
+        commandError={{ code: 'commandRejected', message: 'turn.submit rejected: HTTP 403 — workspace not granted' }}
+        onSubmit={noop} onCancel={noop} onRemove={noop} onDecide={noop}
+      />,
+    )
+    expect(withError).toContain('data-exec-error')
+    expect(withError).toContain('workspace not granted')
+
+    const clean = renderToString(
+      <Composer
+        phase='ready'
+        queue={status().queue}
+        pendingApprovals={[]}
+        settledApprovals={[]}
+        onSubmit={noop} onCancel={noop} onRemove={noop} onDecide={noop}
+      />,
+    )
+    expect(clean).not.toContain('data-exec-error')
+  })
+})
+
 describe('QueueList', () => {
   test('空队列零渲染；running/queued 行 + cancel/remove 按钮锚点', () => {
     expect(renderToString(<QueueList runningTurnId={null} queuedTurnIds={[]} />)).toBe('')

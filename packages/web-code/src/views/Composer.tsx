@@ -12,13 +12,15 @@ export interface ComposerProps {
   queue: ExecutionStatusModel['queue']
   pendingApprovals: ExecutionStatusModel['pendingApprovals']
   settledApprovals: ExecutionStatusModel['settledApprovals']
-  onSubmit: (text: string) => void
+  /** 命令面拒绝明示（status.error；probe 失败走 phase='error' 零渲染，不可达此处）。 */
+  commandError?: { code: string; message: string }
+  onSubmit: (text: string) => void | Promise<void>
   onCancel: (turnId: string) => void
   onRemove: (turnId: string) => void
   onDecide: (approvalId: string, decision: ApprovalCardDecision) => void
 }
 
-export function Composer({ phase, queue, pendingApprovals, settledApprovals, onSubmit, onCancel, onRemove, onDecide }: ComposerProps) {
+export function Composer({ phase, queue, pendingApprovals, settledApprovals, commandError, onSubmit, onCancel, onRemove, onDecide }: ComposerProps) {
   // probe=off / disabled / error / probing → 零渲染（执行面不存在，非禁用态）。
   if (phase !== 'ready') return null
   return (
@@ -32,12 +34,15 @@ export function Composer({ phase, queue, pendingApprovals, settledApprovals, onS
           {entry.approvalId} → {entry.decision}（actor {entry.actorId}）
         </div>
       ))}
+      {commandError !== undefined && (
+        <div className='webcode-exec-command-error' data-exec-error role='alert'>{commandError.message}</div>
+      )}
       <ComposerInput onSubmit={onSubmit} />
     </div>
   )
 }
 
-function ComposerInput({ onSubmit }: { onSubmit: (text: string) => void }) {
+function ComposerInput({ onSubmit }: { onSubmit: (text: string) => void | Promise<void> }) {
   const [text, setText] = useState('')
   return (
     <form
@@ -46,8 +51,12 @@ function ComposerInput({ onSubmit }: { onSubmit: (text: string) => void }) {
         event.preventDefault()
         const trimmed = text.trim()
         if (trimmed.length === 0) return
-        onSubmit(trimmed)
-        setText('')
+        // 成功清空（仅当提交后未再输入）；失败保留输入——错误面由
+        // status.error（data-exec-error）承载，不静默吞文本。
+        const submitted = trimmed
+        void Promise.resolve(onSubmit(submitted))
+          .then(() => { setText(current => (current === submitted ? '' : current)) })
+          .catch(() => { /* 拒绝明示面在 status.error；输入保留供修正重发 */ })
       }}
     >
       <input

@@ -206,10 +206,13 @@ test('unauthorized workspace never executes', async ({ page }) => {
     const res = await submitWire(page, host, { submitId: crypto.randomUUID(), text: PONG_PROMPT, workspaceId: 'ws-unauthorized' })
     expect(res.status(), 'unauthorized submit must be rejected').toBe(403)
 
-    // UI 路径：Composer 在场（probe 不查授权——连接级面），提交命令被服务端拒。
+    // UI 路径：Composer 在场（probe 不查授权——连接级面），提交命令被服务端拒；
+    // 拒绝明示面（data-exec-error 行）出现且输入保留（终审 Issue 1 修复腿）。
     await page.locator('[data-exec-input]').fill('Should never reach the engine.')
     await page.locator('[data-exec-submit]').click()
-    await page.waitForTimeout(3000)
+    await expect(page.locator('[data-exec-error]')).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('[data-exec-error]')).toContainText('403')
+    await expect(page.locator('[data-exec-input]')).toHaveValue('Should never reach the engine.')
 
     // 内核证据口径：引擎零痕迹（JSONL 零新增 user 行、零 running 投影）。
     expect(userLineCount(host), 'engine must have zero trace of unauthorized submits').toBe(baseline)

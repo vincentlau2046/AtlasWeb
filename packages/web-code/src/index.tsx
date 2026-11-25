@@ -257,7 +257,10 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
             queue={exec.queue}
             pendingApprovals={exec.pendingApprovals}
             settledApprovals={exec.settledApprovals}
-            onSubmit={text => { void execution!.submit(text).catch(() => {}) }}
+            commandError={exec.error}
+            // submit 拒绝透传给 Composer（保输入 + status.error 明示面）；
+            // 其余命令错误面由 status.error 承载，此处防 unhandled rejection。
+            onSubmit={text => execution!.submit(text)}
             onCancel={turnId => { void execution!.cancel(turnId).catch(() => {}) }}
             onRemove={turnId => { void execution!.remove(turnId).catch(() => {}) }}
             onDecide={(approvalId, decision) => { void execution!.decide(approvalId, decision).catch(() => {}) }}

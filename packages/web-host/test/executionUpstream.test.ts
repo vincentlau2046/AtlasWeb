@@ -1,4 +1,8 @@
 import { describe, test, expect } from 'bun:test'
+import { mkdtemp, writeFile } from 'node:fs/promises'
+import { rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { createExecutionUpstream, createSpawnCliTurnRunner, streamJsonTextDelta } from '../src/execution/upstream'
 import type { SpawnSeam } from '../src/execution/upstream'
 import { createWorkspaceAuthorizer } from '../src/execution/workspaceAuth'
@@ -163,6 +167,51 @@ describe('createSpawnCliTurnRunner · e429130 真体形（spawn seam 注入）',
       text: 'x', signal: new AbortController().signal,
       requestApproval: async () => 'approved', emitDelta: () => {},
     })).rejects.toThrow(/not granted/)
+  })
+
+  // 终审 Issue 2 修复腿：stderr 只 pipe 不读 → node 运行时 >64KiB 产出塞满
+  // 管道 → 子进程写阻塞 → close 永不 firing → 回合悬挂（stdin 事故同形；
+  // bun 测试运行时自排水不复现，塞满形由本消费者在场断言钉住回归）。
+  test('stderr 消费者在场（spawn 后必须有 data listener 防 node 运行时管道塞满）', async () => {
+    const stderrListeners: Array<(chunk: Buffer) => void> = []
+    const closeListeners: Array<(code: number | null) => void> = []
+    const child = {
+      stdout: { on: () => {} },
+      stderr: { on: (ev: string, l: (chunk: Buffer) => void) => { if (ev === 'data') stderrListeners.push(l) } },
+      on: (ev: string, l: (code: number | null) => void) => { if (ev === 'close') closeListeners.push(l) },
+      kill: () => {},
+    }
+    const seam: SpawnSeam = () => {
+      queueMicrotask(() => closeListeners.forEach(l => l(0)))
+      return child as never
+    }
+    const runner = createSpawnCliTurnRunner({ workspaceDir: () => '/tmp/ws1', spawn: seam })
+    const outcome = await runner({
+      bind: { workspaceId: 'ws1', sessionId: 's', turnId: 't' },
+      text: 'x', signal: new AbortController().signal,
+      requestApproval: async () => 'approved', emitDelta: () => {},
+    })
+    expect(outcome).toBe('completed')
+    expect(stderrListeners.length, 'stderr pipe must have a data consumer').toBeGreaterThanOrEqual(1)
+  })
+
+  // 真 spawn 全路径烟测（与消费腿共生）：真管道 + 200KiB stderr 产出 →
+  // runner 正常 settle completed（bun 运行时；node 运行时塞满形由上腿钉住）。
+  test('真 spawn 全路径：高产 stderr 引擎正常 settle（completed）', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'upstream-stderr-'))
+    try {
+      const script = join(dir, 'noisy-atlas')
+      await writeFile(script, '#!/bin/sh\nhead -c 200000 /dev/zero | tr \'\\0\' \'x\' >&2\nexit 0\n', { mode: 0o755 })
+      const runner = createSpawnCliTurnRunner({ workspaceDir: () => dir, cliPath: script })
+      const outcome = await runner({
+        bind: { workspaceId: 'ws1', sessionId: 's', turnId: 't' },
+        text: 'x', signal: new AbortController().signal,
+        requestApproval: async () => 'approved', emitDelta: () => {},
+      })
+      expect(outcome).toBe('completed')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 

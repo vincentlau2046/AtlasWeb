@@ -28,13 +28,16 @@ class FakeTransport implements ExecutionTransport {
   /** probe 响应体（缺省 on）。 */
   probeBody: unknown = { enabled: true, supportedV: 0 }
   probeStatus = 200
+  /** 命令响应（probe 除外；缺省 200 accepted）。 */
+  commandStatus = 200
+  commandBody: unknown = { type: 'turn.accepted', id: uuid(), cursor: uuid(), v: 0, ts: 0, bind: {}, payload: {} }
   /** 事件流帧序列（按 openEventStream 调用序取用；缺省空流）。 */
   frames: unknown[][] = []
 
   async post(path: string, body: unknown): Promise<{ status: number; body: unknown }> {
     this.posts.push({ path, body: body as Record<string, unknown> })
     if (path === '/execution/probe') return { status: this.probeStatus, body: this.probeBody }
-    return { status: 200, body: { type: 'turn.accepted', id: uuid(), cursor: uuid(), v: 0, ts: 0, bind: {}, payload: {} } }
+    return { status: this.commandStatus, body: this.commandBody }
   }
 
   openEventStream(opts: { workspaceId: string; sessionId: string; cursor?: string; signal: AbortSignal }): AsyncIterable<unknown> {
@@ -149,6 +152,47 @@ describe('ExecutionController · 四写命令 wire 形', () => {
 
     await expect(controller.decide('ap-unknown', 'approved')).rejects.toThrow(/not pending/)
     expect(transport.posts.filter(p => p.path === '/execution/approval.decide').length).toBe(1)
+  })
+})
+
+describe('ExecutionController · 命令拒绝明示面（终审 Issue 1 修复）', () => {
+  test('命令非 2xx → status.error 明示（服务端 message 透传）+ 承诺拒绝 + phase 保持 ready', async () => {
+    const transport = new FakeTransport()
+    transport.commandStatus = 403
+    transport.commandBody = { code: 'workspaceNotGranted', message: 'workspace not granted' }
+    const { controller } = makeController(transport)
+    await controller.attach()
+    await expect(controller.submit('hi')).rejects.toThrow(/rejected/)
+    const s = controller.status.getSnapshot()
+    expect(s.phase, 'command rejection must not flip the phase').toBe('ready')
+    expect(s.error?.code).toBe('commandRejected')
+    expect(s.error?.message).toContain('HTTP 403')
+    expect(s.error?.message).toContain('workspace not granted')
+  })
+
+  test('cancel 同面：非 2xx → error 明示 + 承诺拒绝', async () => {
+    const transport = new FakeTransport()
+    transport.commandStatus = 409
+    transport.commandBody = { code: 'alreadySettled', message: 'turn already settled' }
+    const { controller } = makeController(transport)
+    await controller.attach()
+    await expect(controller.cancel('t-1')).rejects.toThrow(/rejected/)
+    const s = controller.status.getSnapshot()
+    expect(s.error?.code).toBe('commandRejected')
+    expect(s.error?.message).toContain('turn already settled')
+  })
+
+  test('后续命令成功 → 前错清除（error 面不滞留）', async () => {
+    const transport = new FakeTransport()
+    transport.commandStatus = 403
+    transport.commandBody = { code: 'workspaceNotGranted', message: 'denied' }
+    const { controller } = makeController(transport)
+    await controller.attach()
+    await expect(controller.submit('hi')).rejects.toThrow(/rejected/)
+    expect(controller.status.getSnapshot().error).toBeDefined()
+    transport.commandStatus = 200
+    await controller.submit('again')
+    expect(controller.status.getSnapshot().error).toBeUndefined()
   })
 })
 

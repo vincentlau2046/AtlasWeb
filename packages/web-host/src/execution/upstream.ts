@@ -118,6 +118,11 @@ export function createSpawnCliTurnRunner(options: {
         if (text !== null) deps.emitDelta(text)
       }
     })
+    // stderr 消费腿（终审 Issue 2）：--verbose 引擎 stderr 若只 pipe 不读，
+    // node 运行时 >64KiB 产出塞满管道 → 子进程写阻塞 → close 永不 firing
+    // → 回合悬挂（stdin 事故同形）。消费丢弃（协议面在 stdout；诊断转发
+    // 候后续日志面切片）。
+    child.stderr?.on('data', () => {})
     // signal → kill（引擎真中止）；runner 返回 'cancelled'（终态以 kernel
     // settleTurn 为准，恰一个）。
     const onAbort = (): void => {

@@ -56,7 +56,7 @@ export interface SettledApprovalVM {
 export interface ExecutionStatusModel {
   phase: ExecutionPhase
   error?: { code: string; message: string }
-  /** 流级错误（命令面失败不经此——命令错误由调用方捕获）。 */
+  /** 流级错误（流断线/error 事件）。命令面拒绝经 `error`（probe 失败同域）。 */
   streamError?: { code: string; message: string }
   queue: ExecutionQueueVM
   pendingApprovals: PendingApprovalVM[]
@@ -156,41 +156,54 @@ export class ExecutionController {
     this.startStream(binding)
   }
 
+  /**
+   * 命令派发公共尾（终审 Issue 1）：非 2xx → status.error 明示面 + 抛出
+   * （服务端 message 透传；UI 由 data-exec-error 行承载）；2xx → 清前错
+   * （error 面不滞留）。
+   */
+  private async postCommand(
+    type: string,
+    path: string,
+    bind: ExecutionBinding & { turnId?: string },
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    const res = await this.transport.post(path, { ...envelope(), type, bind, payload })
+    if (res.status < 200 || res.status >= 300) {
+      const body = res.body as { message?: unknown } | null
+      const detail = typeof body?.message === 'string' && body.message.length > 0 ? body.message : 'no detail'
+      const message = `${type} rejected: HTTP ${res.status} — ${detail}`
+      this.patch({ error: { code: 'commandRejected', message } })
+      throw new Error(message)
+    }
+    if (this.model.getSnapshot().error !== undefined) this.patch({ error: undefined })
+  }
+
   /** 提交回合：submitId 客户端产一次（UUID）；reuse=true 复用上一次（E3 幂等重试）。 */
   async submit(text: string, opts?: { reuseLastSubmitId?: boolean }): Promise<{ submitId: string }> {
     const binding = this.requireReady()
     const reuse = opts?.reuseLastSubmitId === true && this.lastSubmit !== undefined
     const submitId = reuse ? this.lastSubmit!.submitId : crypto.randomUUID()
     this.lastSubmit = { submitId, text }
-    await this.transport.post('/execution/turn.submit', {
-      ...envelope(),
-      type: 'turn.submit',
-      bind: { workspaceId: binding.workspaceId, sessionId: binding.sessionId },
-      payload: { submitId, text },
-    })
+    await this.postCommand('turn.submit', '/execution/turn.submit',
+      { workspaceId: binding.workspaceId, sessionId: binding.sessionId },
+      { submitId, text })
     return { submitId }
   }
 
   /** 运行中取消（kernel 落 cancelled 终态）。 */
   async cancel(turnId: string): Promise<void> {
     const binding = this.requireReady()
-    await this.transport.post('/execution/turn.cancel', {
-      ...envelope(),
-      type: 'turn.cancel',
-      bind: { workspaceId: binding.workspaceId, sessionId: binding.sessionId },
-      payload: { targetTurnId: turnId },
-    })
+    await this.postCommand('turn.cancel', '/execution/turn.cancel',
+      { workspaceId: binding.workspaceId, sessionId: binding.sessionId },
+      { targetTurnId: turnId })
   }
 
   /** 排队中移除 ≡ turn.cancel(queued)：cancelled 终态，不静默移除。 */
   async remove(turnId: string): Promise<void> {
     const binding = this.requireReady()
-    await this.transport.post('/execution/queue.remove', {
-      ...envelope(),
-      type: 'queue.remove',
-      bind: { workspaceId: binding.workspaceId, sessionId: binding.sessionId },
-      payload: { targetTurnId: turnId },
-    })
+    await this.postCommand('queue.remove', '/execution/queue.remove',
+      { workspaceId: binding.workspaceId, sessionId: binding.sessionId },
+      { targetTurnId: turnId })
   }
 
   /**
@@ -203,12 +216,9 @@ export class ExecutionController {
     if (pending === undefined) {
       throw new Error(`approval "${approvalId}" is not pending — decide requires the owning turn binding (zero dispatch)`)
     }
-    await this.transport.post('/execution/approval.decide', {
-      ...envelope(),
-      type: 'approval.decide',
-      bind: { workspaceId: binding.workspaceId, sessionId: binding.sessionId, turnId: pending.turnId },
-      payload: { approvalId, decision },
-    })
+    await this.postCommand('approval.decide', '/execution/approval.decide',
+      { workspaceId: binding.workspaceId, sessionId: binding.sessionId, turnId: pending.turnId },
+      { approvalId, decision })
   }
 
   /** 断线手动重连：以 lastCursor 续传（恰一次语义由服务端 cursor 权威）。 */
