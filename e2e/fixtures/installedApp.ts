@@ -318,3 +318,105 @@ export async function launchInstalledBin(app: InstalledApp, sessionsDir: string)
     },
   }
 }
+
+// —— B 附表 §2/§3 执行腿启动器（B1/B2 e2e pw 腿；R3/R4 裁定）——
+
+/** 执行腿宿主句柄：InstalledBinHandle + 统一目录锚（断言用）。 */
+export interface ExecutionHostHandle extends InstalledBinHandle {
+  workspaceId: string
+  /** 引擎 cwd（授权工作区；磁盘证据断言面）。 */
+  workspaceDir: string
+  /** host scope 目录 ≡ 引擎落盘 project 目录（R4 统一目录；会话 JSONL 落盘断言面）。 */
+  scopeDir: string
+  /** 隔离 ATLAS_CONFIG_DIR（引擎 file-history/plans 等副产物隔离面）。 */
+  cfgDir: string
+}
+
+/**
+ * 执行腿启动器：已安装 bin + --execution + 引擎统一目录。
+ *
+ * - 引擎真体：spawn 按名 `atlas`（生产形）——PATH 前置仓内
+ *   `node_modules/.bin`（R3：@atlaswork/atlascode 精确 pin；全局 atlas 版本
+ *   陈旧禁用）。安装包零 npm dependencies（自包含 bundle），引擎由运行环境
+ *   PATH 供给。
+ * - 统一目录（R4，实测定谳 probe 2026-11-25）：host --scope 目录 =
+ *   `<cfg>/projects/<encoded-ws>`（引擎落盘 project 目录，cwd 斜杠→短横）；
+ *   引擎 `--resume <sessionId>` 直接命中 fixture 预置会话并追加落盘 →
+ *   只读投影面（刷新回读）可见。
+ * - 引擎配置隔离：ATLAS_CONFIG_DIR = 临时 cfg（settings.json + .credentials.json
+ *   自 ~/.atlas 拷贝——本机引擎可跑前提；缺席即腿红，非静默跳过）。
+ * - fixture 预置：短样本 short-0001（4 条，makeMessage 形）。
+ *
+ * 令牌与目录路径不出本模块边界。
+ */
+export async function launchInstalledBinExecution(app: InstalledApp, opts?: {
+  workspaceId?: string
+  actorId?: string
+}): Promise<ExecutionHostHandle> {
+  const workspaceId = opts?.workspaceId ?? 'ws-exec'
+  const actorId = opts?.actorId ?? 'atlasweb-e2e'
+  const root = tempRoot()
+  const workspaceDir = join(root, 'ws')
+  const cfgDir = join(root, 'cfg')
+  const scopeDir = join(cfgDir, 'projects', workspaceDir.replaceAll('/', '-'))
+  mkdirSync(workspaceDir, { recursive: true })
+  mkdirSync(scopeDir, { recursive: true })
+  // 引擎配置（R4 探针定谳的最小集）：settings.json（模型角色/提供商）+
+  // .credentials.json（凭据）。缺席 → 引擎快速失败 → 腿红（明示，非跳过）。
+  for (const name of ['settings.json', '.credentials.json']) {
+    const src = join(process.env.HOME ?? '', '.atlas', name)
+    if (!existsSync(src)) {
+      process.stderr.write(`fatal: ~/.atlas/${name} missing — engine config prerequisite for execution legs\n`)
+      process.exit(1)
+    }
+    cpSync(src, join(cfgDir, name))
+  }
+  // fixture 预置会话（短样本 4 条 + custom-title；引擎 --resume 兼容形已实测）。
+  const baseTs = '2026-11-20T10:00:00.000Z'
+  const lines = [`${JSON.stringify({ type: 'custom-title', sessionId: 'short-0001', customTitle: 'Execution leg session' })}\n`]
+  let parent: string | null = null
+  for (let i = 1; i <= 4; i++) {
+    const uuid = `m${String(i).padStart(3, '0')}`
+    const role = i % 2 === 1 ? 'user' : 'assistant'
+    lines.push(makeMessage({ uuid, role, text: `Execution leg message ${uuid}: seeded opening.` }, parent, 'short-0001', baseTs))
+    parent = uuid
+  }
+  writeFileSync(join(scopeDir, 'short-0001.jsonl'), lines.join(''), 'utf8')
+
+  const binPath = join(app.installDir, 'node_modules', '.bin', 'atlasweb')
+  if (!existsSync(binPath)) {
+    process.stderr.write('fatal: installed package has no .bin/atlasweb\n')
+    process.exit(1)
+  }
+  const nodeDir = dirname(process.execPath)
+  const pathSegs = (process.env.PATH ?? '').split(':').filter(seg => seg.length > 0 && !seg.includes('bun'))
+  const execPath = [join(REPO_ROOT, 'node_modules', '.bin'), nodeDir, ...pathSegs].join(':')
+  const child = spawn(binPath, [
+    '--port', '0',
+    '--scope', `main=${scopeDir}`,
+    '--execution',
+    '--workspace', `${workspaceId}=${workspaceDir}`,
+    '--actor-id', actorId,
+  ], {
+    cwd: app.installDir,
+    env: { ...process.env, PATH: execPath, ATLAS_CONFIG_DIR: cfgDir },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  const ready = await consumeReadyLine(child, 'installed bin (execution)')
+  return {
+    baseUrl: `http://127.0.0.1:${ready.port}`,
+    redeemUrl: `http://127.0.0.1:${ready.port}/auth/redeem?token=${encodeURIComponent(ready.token)}`,
+    token: ready.token,
+    pid: child.pid ?? -1,
+    workspaceId,
+    workspaceDir,
+    scopeDir,
+    cfgDir,
+    close(): void {
+      child.kill('SIGTERM')
+      const timer = setTimeout(() => child.kill('SIGKILL'), 5000)
+      child.once('exit', () => clearTimeout(timer))
+      rmSync(root, { recursive: true, force: true })
+    },
+  }
+}
