@@ -91,17 +91,19 @@ interface PairingRollbackAttestation {
 
 const EXPECTED = {
   kind: 'pairing-rollback-attestation',
-  upgradeVersion: '0.1.127',
-  // 0.1.127 = B1 前置件 + 推送安全硬化波（emitDelta 缝 + 注入形组合根
-  // createExecutionComposition + F1/F3/F4/F5 kernel 硬化）：execution
-  // bundle 出口 278,747B 新锚 95dac0da…（runtime 面 7e7e6f38 恒等第五版；
-  // SRI docs/sri/v0.1.127.md）；cli.js 锚 18,239,284B
-  // b4dfd8a4…（0.1.126=18,238,298B 18c4211e…，kernel-execution 域嵌入
-  // 增量 +986B，源码级 CLI 车道零触碰——SRI 注记①）。downgrade 锚 =
-  // 0.1.126 cli.js（真实降级腿实测 @2026-11-21 配对链）。
-  upgradeSha256Prefix: 'b4dfd8a415687936',
-  downgradeVersion: '0.1.126',
-  downgradeSha256Prefix: '18c4211e4139906a',
+  upgradeVersion: '0.1.128',
+  // 0.1.128 = F6-PAGE S1 载体 replay 内容分页公开接口波（wire 加性
+  // pageToken/pageSize/hasMore/nextPageToken 键在场语义 + 装窗读路径 +
+  // replay skeleton subtype+snipMetadata 保留）：runtime 101,550B
+  // 85e9b293… + execution 291,452B 5c8c095e…（双 bundle 变值，S1 修形①②
+  // 归因闭合——SRI docs/sri/v0.1.128.md）；cli.js 锚 18,239,436B
+  // 45259d7d…（0.1.127=18,239,284B b4dfd8a4…，+152B = webSessionV0 分页
+  // 键加性 + engine/session 共享 chunk 编译入 cli bundle——SRI 注记②）。
+  // downgrade 锚 = 0.1.127 cli.js（真实降级腿实测 @2026-11-26 配对链，
+  // registry 直下三腿逐字节）。
+  upgradeSha256Prefix: '45259d7d0d1e1e2b',
+  downgradeVersion: '0.1.127',
+  downgradeSha256Prefix: 'b4dfd8a415687936',
 } as const
 
 function isHex(s: string, len: number): boolean {
