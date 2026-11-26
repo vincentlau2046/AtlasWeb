@@ -489,14 +489,39 @@ export function createHttpHost(options: HttpHostOptions): Server {
         const replayMatch = path.match(/^\/sessions\/([^/]+)\/replay$/)
         if (req.method === 'GET' && replayMatch) {
           const scopeId = url.searchParams.get('scopeId') ?? 'main'
+          // F6-PAGE S2（工单 docs/2026-11-25-f6-page-ticket.md §1 切片 2）：
+          // 可选分页透传。request 零分页键 = 旧全量逐字节不变（键在场 =
+          // carrier 分页判定）；?pageSize= host 预验十进制非负整数
+          // fail-closed（search 面 query 界同形——值域 clamp 是 carrier
+          // 域）；?pageToken= opaque 原样透传（carrier 解码判形）。
+          const request: { scopeId: string; sessionId: string; pageSize?: number; pageToken?: string } = {
+            scopeId,
+            sessionId: decodeURIComponent(replayMatch[1]!),
+          }
+          const pageSizeRaw = url.searchParams.get('pageSize')
+          if (pageSizeRaw !== null) {
+            if (!/^\d{1,9}$/.test(pageSizeRaw)) {
+              sendContractError(res, 400, 'invalidRequest', 'pageSize must be a non-negative integer', scopeId, productId)
+              return
+            }
+            request.pageSize = Number(pageSizeRaw)
+          }
+          const pageToken = url.searchParams.get('pageToken')
+          if (pageToken !== null) request.pageToken = pageToken
           try {
-            const result = await sessionHost.replaySession({ scopeId, sessionId: decodeURIComponent(replayMatch[1]!) })
+            const result = await sessionHost.replaySession(request)
             sendEnvelope(res, 'replaySession', scopeId, productId, result)
           } catch (error) {
             const code = (error as { code?: string }).code
             const message = String((error as Error).message ?? '')
             if (code === 'scopeDenied') sendContractError(res, 403, 'scopeDenied', 'scope denied', scopeId, productId)
             else if (code === 'notFound' || code === undefined && message.includes('not found')) sendContractError(res, 404, 'notFound', 'not found', scopeId, productId)
+            // F6-PAGE S2 对表扩形：invalidRequest→400 / cursorExpired→400
+            // （body code 区分，禁错页静默的显性 400 面）/
+            // resourceLimit→429（沿 search/list 先例）。
+            else if (code === 'invalidRequest') sendContractError(res, 400, 'invalidRequest', 'invalid request', scopeId, productId)
+            else if (code === 'cursorExpired') sendContractError(res, 400, 'cursorExpired', 'replay page cursor expired', scopeId, productId)
+            else if (code === 'resourceLimit') sendContractError(res, 429, 'resourceLimit', 'resource limit', scopeId, productId)
             else sendJson(res, 500, { error: 'internal', code: code ?? null })
           }
           return

@@ -41,7 +41,9 @@ export interface SessionHost {
   readonly limits: ReadonlySessionRuntime['limits']
   start(): Promise<void>
   listSessions(request: { scopeId: string }, signal?: AbortSignal): ReturnType<ReadonlySessionRuntime['listSessions']>
-  replaySession(request: { scopeId: string; sessionId: string }, signal?: AbortSignal): ReturnType<ReadonlySessionRuntime['replaySession']>
+  // F6-PAGE S2：可选分页键加性扩面（键在场语义——host 不注入默认值，
+  // 无分页参时 request 零分页键；值域 clamp 是 carrier 域）。
+  replaySession(request: { scopeId: string; sessionId: string; pageSize?: number; pageToken?: string }, signal?: AbortSignal): ReturnType<ReadonlySessionRuntime['replaySession']>
   followSession(request: { scopeId: string; sessionId: string; resumeCursor?: string }, signal?: AbortSignal): ReturnType<ReadonlySessionRuntime['followSession']>
   searchSessions(request: { scopeId: string; query: string }, signal?: AbortSignal): ReturnType<ReadonlySessionRuntime['searchSessions']>
   close(): Promise<void>

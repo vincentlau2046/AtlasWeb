@@ -79,8 +79,12 @@ export interface AtlasConnection {
   searchSessions(query: string, opts?: { scopeId?: string }): Promise<{
     results: Array<Record<string, unknown>>
   }>
-  replaySession(sessionId: string, opts?: { scopeId?: string }): Promise<{
+  // F6-PAGE S2：可选分页键加性扩面（pageToken opaque / pageSize host
+  // 预验域——connection 只做 URL 拼接透传）。
+  replaySession(sessionId: string, opts?: { scopeId?: string; pageSize?: number; pageToken?: string }): Promise<{
     projection: Record<string, unknown>
+    hasMore?: boolean
+    nextPageToken?: string
   }>
   follow(sessionId: string, opts?: AtlasFollowOptions): AtlasFollowHandle
   close(): Promise<void>
@@ -364,7 +368,7 @@ export async function connect(config: AtlasConnectionConfig): Promise<AtlasConne
     credential,
     listSessions: opts => request(`sessions?scopeId=${encodeURIComponent(scope(opts))}${opts?.pageToken ? `&pageToken=${encodeURIComponent(opts.pageToken)}` : ''}`),
     searchSessions: (query, opts) => request(`sessions/search?scopeId=${encodeURIComponent(scope(opts))}&q=${encodeURIComponent(query)}`),
-    replaySession: (sessionId, opts) => request(`sessions/${encodeURIComponent(sessionId)}/replay?scopeId=${encodeURIComponent(scope(opts))}`),
+    replaySession: (sessionId, opts) => request(`sessions/${encodeURIComponent(sessionId)}/replay?scopeId=${encodeURIComponent(scope(opts))}${opts?.pageSize !== undefined ? `&pageSize=${opts.pageSize}` : ''}${opts?.pageToken ? `&pageToken=${encodeURIComponent(opts.pageToken)}` : ''}`),
     follow,
     async close() {
       for (const controller of controllers) controller.abort()
