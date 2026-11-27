@@ -4,7 +4,7 @@ import { describe, expect, test } from 'bun:test'
 import { renderToString } from 'react-dom/server'
 import { ConversationView } from '../src/views/ConversationView.tsx'
 import { NavigationColumnView } from '../src/views/NavigationColumnView.tsx'
-import { modelFromProjection } from '../src/projection.ts'
+import { modelFromProjection, type ConversationModel } from '../src/projection.ts'
 
 const ROWS = [
   { id: 's1', title: 'Session one', messageCount: 4, updatedAt: '2026-11-20T01:00:00Z' },
@@ -174,5 +174,48 @@ describe('ConversationView', () => {
     const model = modelFromProjection({ projection: seeded })
     const html = renderToString(<ConversationView conversation={model} />)
     expect(html).not.toContain('data-anchor-missed')
+  })
+})
+
+// F6-PAGE UI 消费波：行进进度面 + cursorExpired 显性（格 1/4 UI 层）。
+describe('ConversationView — F6-PAGE 行进面', () => {
+  const pagingModel = (overrides: Partial<ConversationModel> = {}): ConversationModel => ({
+    sessionId: 'big', status: 'paging-walk', messages: [], annotations: [], annotationCount: 0,
+    paging: { loaded: 42, complete: false }, ...overrides,
+  })
+
+  test('paging-walk renders the progress face with the loaded count', () => {
+    const html = renderToString(<ConversationView conversation={pagingModel()} />)
+    expect(html).toContain('data-paging-progress')
+    expect(html).toContain('Loading earlier history')
+    expect(html).toContain('data-paging-loaded="42"')
+  })
+
+  test('live status renders no progress face (行进完即隐)', () => {
+    const html = renderToString(<ConversationView conversation={pagingModel({ status: 'live', paging: { loaded: 99, complete: true } })} />)
+    expect(html).not.toContain('data-paging-progress')
+  })
+
+  test('cursorExpired renders the explicit error face with a Reload entry (格 4 显性)', () => {
+    const html = renderToString(
+      <ConversationView
+        conversation={pagingModel({ status: 'error', error: { code: 'cursorExpired', message: 'replay pageToken anchor drift' } })}
+        onRetry={() => {}}
+      />,
+    )
+    expect(html).toContain('data-conn-error')
+    expect(html).toContain('cursorExpired')
+    expect(html).toContain('data-conn-retry-kind="cursorExpired"')
+  })
+
+  test('connectionLost retry button keeps its existing shape (零回归)', () => {
+    const html = renderToString(
+      <ConversationView
+        conversation={pagingModel({ status: 'error', error: { code: 'connectionLost', message: 'lost' } })}
+        onRetry={() => {}}
+      />,
+    )
+    expect(html).toContain('data-conn-retry')
+    expect(html).not.toContain('data-conn-retry-kind')
   })
 })

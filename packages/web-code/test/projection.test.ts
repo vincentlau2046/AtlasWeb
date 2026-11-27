@@ -3,7 +3,7 @@
 // NeutralBlock = text|activity），seeded fixtures 零上游导入（协议透传形）。
 import { describe, expect, test } from 'bun:test'
 import {
-  applyFollowEvent, modelFromProjection,
+  applyFollowEvent, emptyConversation, mergeProjectionPage, modelFromProjection,
   type ConversationModel,
 } from '../src/projection.ts'
 
@@ -156,6 +156,61 @@ describe('projection adapter — follow events', () => {
     const base = applyFollowEvent(modelFromProjection(null), seededBaseline())
     const frozen: ConversationModel = structuredClone(base)
     applyFollowEvent(base, { kind: 'mystery' })
+    expect(base).toEqual(frozen)
+  })
+})
+
+// F6-PAGE UI 消费波：分页行进增量 merge（§3 修形 3——分页结果并入模型，不重灌）。
+describe('projection adapter — F6-PAGE paging merge', () => {
+  const pageProjection = (messages: unknown[], sessionId = 'big') => ({
+    projection: { sessionId, productId: 'atlascode', scopeId: 'main', semantics: 'persisted-effective-conversation', messages, truncated: true },
+  })
+  const msg = (id: string) => ({ id, role: 'user', createdAt: null, blocks: [{ kind: 'text', text: `body ${id}` }] })
+
+  test('mergeProjectionPage appends page messages onto the existing model without rehydration', () => {
+    const base = mergeProjectionPage(emptyConversation(), {
+      ...pageProjection([msg('m1'), msg('m2')]),
+      hasMore: true,
+      nextPageToken: 'tok-1',
+    })
+    expect(base.messages.map(m => m.id)).toEqual(['m1', 'm2'])
+    expect(base.status).toBe('paging-walk')
+    expect(base.sessionId).toBe('big')
+    expect(base.paging).toMatchObject({ loaded: 2, complete: false })
+
+    const next = mergeProjectionPage(base, { ...pageProjection([msg('m3')]), hasMore: false })
+    expect(next.messages.map(m => m.id)).toEqual(['m1', 'm2', 'm3'])
+    expect(next.paging).toMatchObject({ loaded: 3, complete: true })
+    // 不重灌：先前消息引用保留（非整体重建新数组对象去旧引用——id 序恒等即可）。
+    expect(next.messages[0]).toBe(base.messages[0])
+  })
+
+  test('mergeProjectionPage dedupes by message id (无重) and preserves order (无漏)', () => {
+    const base = mergeProjectionPage(emptyConversation(), { ...pageProjection([msg('m1'), msg('m2')]), hasMore: true, nextPageToken: 't' })
+    const next = mergeProjectionPage(base, { ...pageProjection([msg('m2'), msg('m3')]), hasMore: false })
+    expect(next.messages.map(m => m.id)).toEqual(['m1', 'm2', 'm3'])
+  })
+
+  test('mergeProjectionPage fails closed on a malformed page (annotate, no throw)', () => {
+    const base = mergeProjectionPage(emptyConversation(), { projection: { garbage: true }, hasMore: true, nextPageToken: 't' })
+    expect(base.annotationCount).toBeGreaterThan(0)
+    expect(base.messages).toHaveLength(0)
+    expect(base.status).toBe('paging-walk')
+  })
+
+  test('mergeProjectionPage keeps malformed page messages visible as annotations (RF3 形)', () => {
+    const base = mergeProjectionPage(emptyConversation(), {
+      ...pageProjection([{ garbage: true }, msg('ok')]),
+      hasMore: false,
+    })
+    expect(base.messages.some(m => m.id === 'ok')).toBe(true)
+    expect(base.annotationCount).toBeGreaterThan(0)
+  })
+
+  test('mergeProjectionPage is immutable', () => {
+    const base = mergeProjectionPage(emptyConversation(), { ...pageProjection([msg('m1')]), hasMore: true, nextPageToken: 't' })
+    const frozen: ConversationModel = structuredClone(base)
+    mergeProjectionPage(base, { ...pageProjection([msg('m2')]), hasMore: false })
     expect(base).toEqual(frozen)
   })
 })

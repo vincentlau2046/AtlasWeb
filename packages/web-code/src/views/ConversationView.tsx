@@ -221,6 +221,18 @@ export function ConversationView(props: ConversationViewProps) {
         {conversation.error?.code === 'connectionLost' && props.onRetry !== undefined && (
           <button type='button' data-conn-retry onClick={props.onRetry}>Retry</button>
         )}
+        {/* F6-PAGE 格 4：cursorExpired 显性（换基线重载入口——经 controller.retry()
+            重开当前会话，全量首试→分页行进自新 cursor 起，禁静默丢内容）。 */}
+        {conversation.error?.code === 'cursorExpired' && props.onRetry !== undefined && (
+          <button type='button' data-conn-retry data-conn-retry-kind='cursorExpired' onClick={props.onRetry}>Reload</button>
+        )}
+        {/* F6-PAGE 格 1：超帽分页行进进度面（行进中可见，行进完 follow 接管即隐）。 */}
+        {conversation.status === 'paging-walk' && (
+          <div className='web-code-paging-progress' data-paging-progress role='status'>
+            Loading earlier history…
+            {conversation.paging !== undefined && <span data-paging-loaded={conversation.paging.loaded} />}
+          </div>
+        )}
         {props.anchorMissed === true && (
           <div className='web-code-anchor-missed' data-anchor-missed role='status'>
             Saved reading position is no longer available — the session is shown from a usable position.

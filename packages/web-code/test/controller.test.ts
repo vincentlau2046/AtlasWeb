@@ -330,3 +330,144 @@ describe('WebCodeController — conversation lifecycle', () => {
     expect(handles[0]!.done).toBeDefined()
   })
 })
+
+// F6-PAGE UI 消费波：超帽回退分页行进（§3 修形 1——全量首试 429 → paging-walk → live）。
+describe('WebCodeController — F6-PAGE 超帽分页行进', () => {
+  const msg = (id: string) => ({ id, role: 'user', createdAt: null, blocks: [{ kind: 'text', text: `body ${id}` }] })
+  const page = (ids: string[], hasMore: boolean, token?: string) => ({
+    projection: { sessionId: 'big', productId: 'atlascode', scopeId: 'main', semantics: 'persisted-effective-conversation', messages: ids.map(msg), truncated: true },
+    ...(hasMore ? { hasMore, nextPageToken: token } : { hasMore }),
+  })
+
+  /** Connection stub: full replay 429s; pages served from a queue with call records. */
+  function overcapConnection(pages: Array<Record<string, unknown>>, failPageAt?: { index: number; error: unknown }) {
+    const replayCalls: Array<{ sessionId: string; opts: unknown }> = []
+    const followCalls: string[] = []
+    let pageCalls = 0
+    const connection: AtlasConnection = {
+      credential: 'c',
+      listSessions: async () => ({ sessions: [] }),
+      searchSessions: async () => ({ results: [] }),
+      replaySession: (async (sessionId: string, opts?: unknown) => {
+        replayCalls.push({ sessionId, opts })
+        if (pageCalls === 0 && opts === undefined) {
+          pageCalls += 1
+          throw Object.assign(new Error('transcript exceeds limit'), { code: 'resourceLimit' })
+        }
+        const index = pageCalls
+        pageCalls += 1
+        if (failPageAt !== undefined && index === failPageAt.index) throw failPageAt.error
+        return pages[Math.min(index - 1, pages.length - 1)]
+      }) as AtlasConnection['replaySession'],
+      follow: (sessionId: string) => {
+        followCalls.push(sessionId)
+        return stubHandle()
+      },
+      close: async () => {},
+    }
+    return { connection, replayCalls, followCalls }
+  }
+
+  test('grid 1 超帽可读：resourceLimit → paging-walk 行进装载 → follow 接管 live', async () => {
+    const { connection, replayCalls, followCalls } = overcapConnection([
+      page(['m1', 'm2'], true, 'tok-1'),
+      page(['m3'], false),
+    ])
+    const controller = new WebCodeController(connection)
+    await controller.openSession('big')
+    const model = controller.conversation.getSnapshot()
+    expect(model.status).toBe('live')
+    expect(model.messages.map(m => m.id)).toEqual(['m1', 'm2', 'm3'])
+    expect(followCalls).toEqual(['big'])
+    // 行进形：后续调用带 pageToken（page 1 无 token 不重放全量路径）。
+    expect(replayCalls.length).toBeGreaterThanOrEqual(3)
+    expect(replayCalls[1]?.opts).toMatchObject({ pageSize: expect.any(Number) })
+    expect(replayCalls[2]?.opts).toMatchObject({ pageToken: 'tok-1' })
+  })
+
+  test('grid 2 帽内零变更：无 resourceLimit 时全量首试路径不变', async () => {
+    const { connection, replayCalls } = overcapConnection([page(['m1'], false)])
+    const normal: AtlasConnection = {
+      ...connection,
+      replaySession: (async (sessionId: string) => {
+        replayCalls.push({ sessionId, opts: undefined })
+        return page(['r1'], false)
+      }) as AtlasConnection['replaySession'],
+    }
+    const controller = new WebCodeController(normal)
+    await controller.openSession('s1')
+    const model = controller.conversation.getSnapshot()
+    expect(model.status).toBe('live')
+    expect(model.messages.map(m => m.id)).toEqual(['r1'])
+    expect(replayCalls).toHaveLength(1) // 仅全量一次，零分页调用
+  })
+
+  test('grid 4a cursorExpired 显性：行进中 cursor 过期 → error 态（明示 code，不静默）', async () => {
+    const { connection } = overcapConnection(
+      [page(['m1'], true, 'tok-1')],
+      { index: 2, error: Object.assign(new Error('replay pageToken anchor drift'), { code: 'cursorExpired' }) },
+    )
+    const controller = new WebCodeController(connection)
+    await controller.openSession('big')
+    const model = controller.conversation.getSnapshot()
+    expect(model.status).toBe('error')
+    expect(model.error?.code).toBe('cursorExpired')
+    expect(model.messages.map(m => m.id)).toEqual(['m1']) // 已装载页保留（不静默丢内容）
+  })
+
+  test('grid 4b F2 族显性：单记录独超页帽 → 分页路径 resourceLimit 仍显性 error（不误吞不误截）', async () => {
+    const { connection } = overcapConnection(
+      [page(['m1'], true, 'tok-1')],
+      { index: 2, error: Object.assign(new Error('record exceeds page cap'), { code: 'resourceLimit' }) },
+    )
+    const controller = new WebCodeController(connection)
+    await controller.openSession('big')
+    const model = controller.conversation.getSnapshot()
+    expect(model.status).toBe('error')
+    expect(model.error?.code).toBe('resourceLimit')
+  })
+
+  test('grid 5 行进中换会话：旧 walk 被代数取代，不污染新会话模型', async () => {
+    const { connection } = overcapConnection([
+      page(['m1'], true, 'tok-1'),
+      page(['m2'], true, 'tok-2'),
+      page(['m3'], true, 'tok-3'),
+    ])
+    const controller = new WebCodeController(connection)
+    const first = controller.openSession('big')
+    await controller.openSession('small') // 行进中途切换
+    await first
+    const model = controller.conversation.getSnapshot()
+    expect(model.sessionId).toBe('small')
+    expect(model.status).not.toBe('paging-walk')
+  })
+
+  test('retry() 经 openSession 换基线重载（cursorExpired 恢复入口形）', async () => {
+    let failFirst = true
+    const { connection, replayCalls } = overcapConnection([page(['m1'], false)])
+    const retryable: AtlasConnection = {
+      ...connection,
+      replaySession: (async (sessionId: string, opts?: unknown) => {
+        if (failFirst && opts === undefined) {
+          failFirst = false
+          throw Object.assign(new Error('transcript exceeds limit'), { code: 'resourceLimit' })
+        }
+        if (opts === undefined) {
+          // 重载后全量路径可用（compact 已发生 → 帽内）
+          replayCalls.push({ sessionId, opts: undefined })
+          return page(['fresh-1'], false)
+        }
+        throw Object.assign(new Error('replay pageToken anchor drift'), { code: 'cursorExpired' })
+      }) as AtlasConnection['replaySession'],
+    }
+    const controller = new WebCodeController(retryable)
+    await controller.openSession('big')
+    // 首开：全量 429 → 分页行进 → page1 ok → page2 cursorExpired
+    // （overcap stub 第二页失败已由 retryable 覆盖——这里直接断言 error 后 retry 恢复）
+    expect(controller.conversation.getSnapshot().status).toBe('error')
+    await controller.retry()
+    const model = controller.conversation.getSnapshot()
+    expect(model.status).toBe('live')
+    expect(model.messages.map(m => m.id)).toEqual(['fresh-1'])
+  })
+})

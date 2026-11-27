@@ -4,7 +4,7 @@
 // fail-closed 语义经 projection.ts。
 import type { AtlasConnection, AtlasConnectionError, AtlasFollowHandle } from '@atlasweb/web-connection'
 import type { ObservableSnapshot } from '@atlasweb/web-store'
-import { applyFollowEvent, emptyConversation, modelFromProjection, type ConversationModel } from './projection.ts'
+import { applyFollowEvent, emptyConversation, mergeProjectionPage, modelFromProjection, type ConversationModel } from './projection.ts'
 
 /** One sidebar session row (structural slice of the session summary). */
 export interface SessionRowVM {
@@ -215,6 +215,13 @@ export class WebCodeController {
       const { projection } = await this.connection.replaySession(sessionId)
       replayed = modelFromProjection({ projection })
     } catch (error) {
+      // F6-PAGE：全量首试 429 resourceLimit（超帽）→ 分页行进模式（page 1 起
+      // 顺序行进 + 进度面 → 行进完 follow 接管）；帽内路径不动。其余错误原样
+      // error 态。代数已被取代则静默让位（新 open 已在途）。
+      if (errorFace(error).code === 'resourceLimit') {
+        if (generation === this.pumpGeneration) await this.walkPages(sessionId, generation)
+        return
+      }
       if (generation === this.pumpGeneration) {
         this.model.set({ ...emptyConversation(), sessionId, status: 'error', error: errorFace(error), messages: [] })
       }
@@ -222,28 +229,9 @@ export class WebCodeController {
     }
     if (generation !== this.pumpGeneration) return
     this.model.set({ ...replayed, sessionId })
-    const handle = this.connection.follow(sessionId)
-    this.currentHandle = handle
-    // A4 连接状态面映射：适配器「重连中」→ 模型 reconnecting（仅当当前
-    // 处于 live/reconnecting 态——error/closed 终态不被重连信号翻转）；
-    // 恢复 live 同理只从 reconnecting 态回写。
-    const followState = (handle as { state?: { getSnapshot(): string; subscribe(fn: () => void): () => void } }).state
-    if (followState !== undefined) {
-      this.handleStateUnsub = followState.subscribe(() => {
-        if (generation !== this.pumpGeneration) return
-        const snapshot = followState.getSnapshot()
-        const current = this.model.getSnapshot()
-        if (snapshot === 'reconnecting' && (current.status === 'live' || current.status === 'reconnecting')) {
-          this.model.set({ ...current, status: 'reconnecting' })
-        } else if (snapshot === 'live' && current.status === 'reconnecting') {
-          this.model.set({ ...current, status: 'live' })
-        }
-      })
-    }
-    // The follow stream is established: replay-only face ends here.
-    this.model.set({ ...this.model.getSnapshot(), status: 'live' })
-    void this.pumpFollow(handle, generation)
+    this.startFollow(sessionId, generation)
   }
+
 
   /**
    * A2: open a session (or reuse the open one) and bind a message target.
@@ -270,6 +258,76 @@ export class WebCodeController {
       generation: intentGeneration,
       ...(target.offsetPx !== undefined ? { offsetPx: target.offsetPx } : {}),
     })
+  }
+
+  /**
+   * F6-PAGE: establish the follow stream for the now-authoritative model
+   * (shared by the full-replay path and the paging-walk completion). The
+   * caller owns the generation guard; any prior handle was already aborted.
+   */
+  private startFollow(sessionId: string, generation: number): void {
+    const handle = this.connection.follow(sessionId)
+    this.currentHandle = handle
+    // A4 连接状态面映射：适配器「重连中」→ 模型 reconnecting（仅当当前
+    // 处于 live/reconnecting 态——error/closed 终态不被重连信号翻转）；
+    // 恢复 live 同理只从 reconnecting 态回写。
+    const followState = (handle as { state?: { getSnapshot(): string; subscribe(fn: () => void): () => void } }).state
+    if (followState !== undefined) {
+      this.handleStateUnsub = followState.subscribe(() => {
+        if (generation !== this.pumpGeneration) return
+        const snapshot = followState.getSnapshot()
+        const current = this.model.getSnapshot()
+        if (snapshot === 'reconnecting' && (current.status === 'live' || current.status === 'reconnecting')) {
+          this.model.set({ ...current, status: 'reconnecting' })
+        } else if (snapshot === 'live' && current.status === 'reconnecting') {
+          this.model.set({ ...current, status: 'live' })
+        }
+      })
+    }
+    // The follow stream is established: replay-only face ends here.
+    this.model.set({ ...this.model.getSnapshot(), status: 'live' })
+    void this.pumpFollow(handle, generation)
+  }
+
+  /**
+   * F6-PAGE: 超帽分页行进——page 1 起顺序行进装载（pageSize 走 carrier 分页
+   * 模式），每页经 mergeProjectionPage 增量并入并即时投影（进度面）。行进完
+   * 成（hasMore=false）follow 接管；行进期间 follow 不在途 ⇒ 追加不与未行进
+   * 历史段交错乱序（格 5 由构造满足）。行进中错误显性 error（cursorExpired /
+   * resourceLimit-F2 族等不误吞不误截，格 4）。
+   */
+  private async walkPages(sessionId: string, generation: number): Promise<void> {
+    const PAGE_SIZE = 200
+    let model: ConversationModel = { ...emptyConversation(), sessionId, status: 'paging-walk', messages: [], paging: { loaded: 0, complete: false } }
+    this.model.set(model)
+    let pageToken: string | undefined
+    for (;;) {
+      if (generation !== this.pumpGeneration) return
+      let page: { projection: Record<string, unknown>; hasMore?: boolean; nextPageToken?: string }
+      try {
+        page = await this.connection.replaySession(sessionId, pageToken === undefined ? { pageSize: PAGE_SIZE } : { pageSize: PAGE_SIZE, pageToken })
+      } catch (error) {
+        if (generation !== this.pumpGeneration) return
+        const face = errorFace(error)
+        this.model.set({
+          ...model,
+          status: 'error',
+          error: face,
+          annotations: [...model.annotations, { reason: `paging walk failed: ${face.code}` }],
+          annotationCount: model.annotations.length + 1,
+        })
+        return
+      }
+      if (generation !== this.pumpGeneration) return
+      model = mergeProjectionPage(model, page)
+      this.model.set(model)
+      if (page.hasMore !== true) break
+      // fail-closed：hasMore 无 token ⇒ 停止行进（不无限打转），按已完成面交 follow。
+      if (typeof page.nextPageToken !== 'string' || page.nextPageToken.length === 0) break
+      pageToken = page.nextPageToken
+    }
+    if (generation !== this.pumpGeneration) return
+    this.startFollow(sessionId, generation)
   }
 
   /**

@@ -37,7 +37,8 @@ export interface MessageVM {
 /** Conversation model: the view's whole world. */
 export interface ConversationModel {
   sessionId: string | null
-  status: 'idle' | 'replay' | 'live' | 'reconnecting' | 'reset' | 'closed' | 'error'
+  // F6-PAGE：'paging-walk' = 超帽分页行进中间态（replay → paging-walk → live）。
+  status: 'idle' | 'replay' | 'paging-walk' | 'live' | 'reconnecting' | 'reset' | 'closed' | 'error'
   messages: MessageVM[]
   /** Skip annotations accumulated by fail-closed handling (RF3), in order. */
   annotations: Array<{ reason: string }>
@@ -45,6 +46,8 @@ export interface ConversationModel {
   error?: { code: string; message: string }
   /** Annotation count mirror (cheap selector target). */
   annotationCount: number
+  /** F6-PAGE 分页行进进度面（paging-walk 态由视图渲染行进指示）。 */
+  paging?: { loaded: number; complete: boolean }
 }
 
 /** The empty model. */
@@ -161,6 +164,44 @@ export function modelFromProjection(payload: unknown): ConversationModel {
     ? (projection as Record<string, unknown>).sessionId as string
     : null
   return withAnnotations({ ...emptyConversation(), status: 'replay', sessionId, messages: narrowed.messages }, narrowed.skipped)
+}
+
+/**
+ * F6-PAGE: merge one paged replay result into the existing model (增量
+ * merge——分页结果并入，不重灌). Messages are appended in page order with
+ * id-dedupe (无重无漏); malformed inputs fail closed (annotate, never
+ * throw); the walk progress face is derived from hasMore.
+ * @param model - the current model (messages loaded so far).
+ * @param payload - paged replay payload `{projection, hasMore?, nextPageToken?}`.
+ * @returns the next model (status 'paging-walk').
+ */
+export function mergeProjectionPage(model: ConversationModel, payload: unknown): ConversationModel {
+  const record = payload !== null && typeof payload === 'object' ? payload as Record<string, unknown> : undefined
+  const narrowed = narrowProjection(record?.projection)
+  const hasMore = record?.hasMore === true
+  if (narrowed === undefined) {
+    return withAnnotations(
+      { ...model, status: 'paging-walk', paging: { loaded: model.messages.length, complete: !hasMore } },
+      [`malformed projection page: ${describe(record?.projection)}`],
+    )
+  }
+  // 无重：按 id 去重（页间可能交付重叠除；页内原序保留）。
+  const seen = new Set(model.messages.map(message => message.id))
+  const appended: MessageVM[] = []
+  for (const message of narrowed.messages) {
+    if (seen.has(message.id)) continue
+    seen.add(message.id)
+    appended.push(message)
+  }
+  const sessionId = record?.projection !== null && typeof record.projection === 'object'
+    && typeof (record.projection as Record<string, unknown>).sessionId === 'string'
+    ? (record.projection as Record<string, unknown>).sessionId as string
+    : model.sessionId
+  const messages = appended.length > 0 ? [...model.messages, ...appended] : model.messages
+  return withAnnotations(
+    { ...model, status: 'paging-walk', sessionId, messages, paging: { loaded: messages.length, complete: !hasMore } },
+    narrowed.skipped,
+  )
 }
 
 /**
