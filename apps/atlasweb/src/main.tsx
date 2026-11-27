@@ -81,6 +81,9 @@ async function boot(): Promise<() => void> {
       },
       ...(initialSessionId !== undefined ? { initialSessionId } : {}),
       anchorStorage: typeof sessionStorage !== 'undefined' ? sessionStorage : null,
+      // B3 设置注入（F9）：产品唯一受支持设置族 = 主题；store 结构面满足
+      // web-code ThemeSettingsLike（fail-closed 校验在 web-brand host）。
+      settings: { themeHost: themeStore },
       ...(execution !== undefined ? { execution } : {}),
     })
   } catch (error) {

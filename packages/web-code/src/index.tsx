@@ -23,6 +23,9 @@ import { ExecutionController,
 import { NavigationColumnView } from './views/NavigationColumnView.tsx'
 import { ConversationView } from './views/ConversationView.tsx'
 import { Composer } from './views/Composer.tsx'
+import { StatusStrip } from './views/StatusStrip.tsx'
+import { DeliverablesCard } from './views/DeliverablesCard.tsx'
+import { SettingsPanel } from './settings/settingsPanel.tsx'
 
 export { WebCodeController } from './controller.ts'
 export type {
@@ -44,6 +47,10 @@ export { ConversationView } from './views/ConversationView.tsx'
 export { Composer } from './views/Composer.tsx'
 export { QueueList } from './views/QueueList.tsx'
 export { ApprovalCard } from './views/ApprovalCard.tsx'
+export { StatusStrip } from './views/StatusStrip.tsx'
+export { DeliverablesCard } from './views/DeliverablesCard.tsx'
+export { SettingsPanel } from './settings/settingsPanel.tsx'
+export type { ThemeSettingsLike } from './settings/settingsPanel.tsx'
 
 /** Entry configuration (cordis plugin config channel; Task 9 wires the real values). */
 export interface WebCodeConfig {
@@ -65,6 +72,13 @@ export interface WebCodeConfig {
   execution?: {
     transport: ExecutionTransport
     binding(): { workspaceId: string } | null
+  }
+  /**
+   * B3 设置注入（F9 无空壳开关）：受支持设置面由组合根供给（现唯一族 =
+   * 主题 ThemeSettingsStore）；缺席 → 面板零渲染 fail-closed。
+   */
+  settings?: {
+    themeHost: ThemeSettingsLike | null
   }
 }
 
@@ -266,8 +280,34 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
             onDecide={(approvalId, decision) => { void execution!.decide(approvalId, decision).catch(() => {}) }}
           />
         )}
+        <DeliverablesCard conversation={conversation} />
       </>
     )
+  })
+
+  // B3 状态条（shell.bottom 单槽）：仅 execution 通道注入时挂载（只读红线）。
+  const disposeStrip = execution !== null
+    ? ctx.slots.register({
+        name: 'shell.bottom',
+        id: 'web-code.status',
+        label: 'Status',
+        inject: (): { hooks: { execution: ObservableSnapshot<ExecutionStatusModel> } } => ({
+          hooks: { execution: execution.status },
+        }),
+      }, function Status(standard: { useExecution: <S>(sel: (snapshot: ExecutionStatusModel) => S) => S }) {
+        const exec = standard.useExecution(snapshot => snapshot)
+        return <StatusStrip status={exec} />
+      })
+    : undefined
+  // B3 设置面板（shell.overlay list 槽）：受支持设置面由组合根注入；host
+  // 缺席面板零渲染（fail-closed），toggle 常在（非执行面，只读模式可用）。
+  const disposeSettings = ctx.slots.register({
+    name: 'shell.overlay',
+    id: 'web-code.settings',
+    label: 'Settings',
+    inject: () => ({ hooks: {} }),
+  }, function Settings() {
+    return <SettingsPanel themeHost={config.settings?.themeHost ?? null} />
   })
 
   ctx.reflect.provide('conversation', {
@@ -283,6 +323,8 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
     dispose: () => {
       disposeNav()
       disposeMain()
+      disposeStrip?.()
+      disposeSettings()
       rootHandle()
       execution?.dispose()
       return controller.dispose()

@@ -46,6 +46,7 @@ checkpointRollback
 | 2 | 对话词汇于 transcript 数据 | `**/test/**`（seeded fixtures、e2e helpers） | 扫描域排除（§2） | 投影数据面：会话内容可合法含 prompt/消息字样，属回放显示对象非 bundle 行为面 |
 | 3 | `approval`（标识符） | `packages/web-code/src/execution/executionController.ts`、`packages/web-code/src/index.tsx`、`packages/web-code/src/views/ApprovalCard.tsx`、`packages/web-code/src/views/Composer.tsx`（**逐文件点名，禁目录级扩用**） | **命中按 (词， 文件) 行豁免**（B 附表 §3 B2 执行通道；Atlas-reveiw 审计裁定 2026-11-22） | kernel wire 词汇（`approval.decide`/`approval.requested`/`approval.settled`、payload 键 `approvalId`、归属 turn 锚 `data-exec-approval`）+ 错误明示文案。**理由绑定门控条件**：执行面仅 `config.execution` 注入时挂载，probe=off / 未注入 → 零渲染（纯只读回归腿保持）——下方 `gate-shapes` 块码形在场是豁免生效前提，码形消失即豁免失效回 RED |
 | 4 | `composer`（标识符） | `packages/web-code/src/views/Composer.tsx`（**逐文件点名**） | 同上 | B2 执行面输入组件类名/锚点（`webcode-exec-composer`、`data-exec-composer`）；同受 `config.execution` 门控 |
+| 5 | `approval`（标识符） | `packages/web-code/src/views/StatusStrip.tsx`（**逐文件点名**） | **命中按 (词, 文件) 行豁免**（B3 状态条；2026-11-27 B3 波同程序走审） | ExecutionStatusModel wire 字段 `pendingApprovals` 只读投影（shell.bottom 状态条计数展示，可见文案中文化「待批」零字面量）；豁免绑定门控：shell.bottom 注册仅 `config.execution` 注入时执行（index.tsx `disposeStrip = execution !== null` 码形），未注入 → 零注册零渲染 |
 
 **dist 豁免面（字面量形点名，非 whole-bundle 宽豁免）**：B2 在 dist 的字面量残留仅为
 下述 wire 词汇 / payload 键 / DOM 锚点 / 类名 / 错误文案片段——dist 负腿先剥除
@@ -71,6 +72,7 @@ approval|packages/web-code/src/index.tsx
 approval|packages/web-code/src/views/ApprovalCard.tsx
 approval|packages/web-code/src/views/Composer.tsx
 composer|packages/web-code/src/views/Composer.tsx
+approval|packages/web-code/src/views/StatusStrip.tsx
 ```
 
 **门控码形（配对正腿——测试断言下列码形在场，消失即 RED，豁免随之失效）**：
@@ -79,6 +81,7 @@ composer|packages/web-code/src/views/Composer.tsx
 packages/web-code/src/views/Composer.tsx|if (phase !== 'ready') return null
 packages/web-code/src/index.tsx|config.execution !== undefined
 packages/web-code/src/execution/executionController.ts|if (binding === null) {
+packages/web-code/src/index.tsx|disposeStrip = execution !== null
 ```
 
 （空行兜底：无其他豁免。新增豁免须过审计——本表为审计抽验对象。B3 新命中面

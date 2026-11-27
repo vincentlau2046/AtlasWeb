@@ -97,7 +97,7 @@ const config: WebCodeConfig = {
 }
 
 describe('web-code entry wiring', () => {
-  test('apply contributes the root sessions source and registers the two views', async () => {
+  test('apply contributes the root sessions source and registers sidebar/main/settings views', async () => {
     const { ctx, rootContributions, registrations, services } = stubCtx()
     await apply(ctx as never, config)
     // Root supply: hook name exactly 'sessions' (→ useSessions standard prop).
@@ -106,11 +106,15 @@ describe('web-code entry wiring', () => {
     expect(Object.keys(hooks)).toEqual(['sessions'])
     const source = hooks.sessions as { getSnapshot(): { byId: Record<string, { title: string | null }> } }
     expect(source.getSnapshot().byId.s1?.title).toBe('Session one')
-    // Registrations: sidebar (single) + main keyed 'conversation'.
-    expect(registrations).toHaveLength(2)
+    // Registrations: sidebar (single) + main keyed 'conversation' + B3 settings
+    // overlay（shell.overlay list 槽；状态条 shell.bottom 仅 execution 注入时
+    // 注册，本 stub config 无 execution → 不在列）。
+    expect(registrations).toHaveLength(3)
     expect(registrations[0]!.name).toBe('sidebar')
     expect(registrations[1]!.name).toBe('main')
     expect(registrations[1]!.key).toBe('conversation')
+    expect(registrations[2]!.name).toBe('shell.overlay')
+    expect(registrations[2]!.id).toBe('web-code.settings')
     // The conversation controller is reachable as a service.
     expect(services.has('conversation')).toBe(true)
   })

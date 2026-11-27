@@ -214,3 +214,50 @@
 .web-code-conversation-header [data-conn-error] {
   color: #b3261e;
 }
+
+/* B3（工单 2026-11-27-b3）：状态条 / 交付物卡 / 设置面板 */
+.webcode-exec-status-strip {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--dsw-alias-label-primary, #0f1114);
+  border-top: 1px solid var(--dsw-alias-border-l2, #e2e4e9);
+  background: var(--dsw-alias-bg-layer-2, #f7f8fa);
+}
+.web-code-deliverables {
+  margin: 12px 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-l2, #e2e4e9);
+  border-radius: var(--dsw-radius-sm, 8px);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  font-size: 13px;
+}
+.web-code-deliverables-title { font-weight: 600; margin-bottom: 6px; }
+.web-code-deliverables-summary {
+  margin-top: 6px;
+  white-space: pre-wrap;
+  color: var(--dsw-alias-label-primary, #0f1114);
+}
+.web-code-deliverables-note { margin-top: 6px; font-size: 11px; opacity: 0.65; }
+.web-code-settings { display: inline-block; }
+.web-code-settings-panel {
+  position: absolute;
+  right: 12px;
+  bottom: 40px;
+  z-index: 30;
+  min-width: 220px;
+  padding: 10px 12px;
+  border: 1px solid var(--dsw-alias-border-l2, #e2e4e9);
+  border-radius: var(--dsw-radius-sm, 8px);
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+.web-code-settings-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  margin: 4px 0;
+}
