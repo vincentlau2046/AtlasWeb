@@ -85,7 +85,7 @@
 ## §7 信号面
 
 1. 本工单 → Atlas-reveiw 审计：一轮 @e38a9d8（方向采认 + 4 必改）→ 修形 @42c5251 → **复判 PASS（0 必改）@42c5251**（2026-11-27）；
-2. **复判 4 非阻注记处置（本 commit）**：① §6 摘要句旧措辞校正；② discovery 端点路由层安全形预注册（§1）；③ **预跑例外登记**——Main lane（AtlasCode job 1b9594d7）于复判 PASS 前已起 B3 落码面（草案工单 + 三视图/settings/单测/接线 ~200 行未提交；草案 §0 系附表 §4 基线、缺增量①）：例外登记，**落码以 42c5251 修形版为唯一准绳**，草案随动更新（增量① 发现列表件 + 审批接线切片〔形 A〕补入），已起面对 42c5251 对表、差异面 Main 补齐；④ carrier 分支初核采记——Atlas-reveiw 初扫 0.1.128：审批请求现形 = `control_request`（print.ts:565/:1587，禁复用面）+ mailbox `permission_request`（engine/messaging 域非 stdout 面），**未见独立结构化审批请求事件**→ 定谳大概率走增补支（新 carrier 版本 → L4 用户亲署 → 终验候选重出）；定谳仍以落码计划 §0 首件为准并回填；
+2. **复判 4 非阻注记处置（本 commit）**：① §6 摘要句旧措辞校正；② discovery 端点路由层安全形预注册（§1）；③ **预跑例外登记**——Main lane（AtlasCode job 1b9594d7）于复判 PASS 前已起 B3 落码面（草案工单 + 三视图/settings/单测/接线 ~200 行未提交；草案 §0 系附表 §4 基线、缺增量①）：例外登记，**落码以 42c5251 修形版为唯一准绳**，草案随动更新（增量① 发现列表件 + 审批接线切片〔形 A〕补入），已起面对 42c5251 对表、差异面 Main 补齐；④ carrier 分支**定谳落定：增补支成立**（Main 落码计划 §0 首件 @01081e4，判词侧独立复核 + 审计初扫三源一致）——0.1.128 stdout stream-json 事件类型面枚举（assistant/connected/control_response/deferred/error/error_during_execution/json_schema/pending/result/success/tool_use/user）**无审批请求事件形**；审批现形仅 = `control_request`/`can_use_tool`（print.ts:549/:825/:2635，SDK 控制协议=禁复用面）+ mailbox `permission_request`（teammateMailbox.ts:454/:577，非 stdout 面）→ **carrier 契约增补结构化审批事件 → 新 carrier 版本（候 0.1.129）走段 L 形发布链（L4 候用户亲署）→ 终验候选重出**；Main 增补件呈批材料随后；
 3. **双信号已发**（复判 PASS 后）：Main = 切片 1 + 审批接线（形 A）落码按 42c5251 修形版（正文条件：执行波草案随动更新含增量①）；e2e = 切片 2/4 判据预注册开工，执行候 Main 候选锁面（全形预备）；
 3. §6 呈批件已呈已裁（用户 2026-11-27 亲裁：形 A + 随波并行）——终验格 8 = 全形；
 4. UI 波（§5-1）独立工单另行走审计链，不入本波。
