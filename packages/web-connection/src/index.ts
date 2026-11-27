@@ -87,6 +87,13 @@ export interface AtlasConnection {
     nextPageToken?: string
   }>
   follow(sessionId: string, opts?: AtlasFollowOptions): AtlasFollowHandle
+  /**
+   * B3 收尾波工单增量①：只读 workspace 发现列表（GET /execution/workspaces）。
+   * /execution 路由族 = 裸 JSON（非 envelope）；响应仅 workspaceId 字符串——
+   * 表外形状（越界字段/缺字段/非串/非数组）fail-closed → invalidRequest。
+   * 可见性 ≠ 授权：选择不预授任何提交权（服务端逐命令对表）。
+   */
+  listWorkspaces(): Promise<{ workspaces: Array<{ workspaceId: string }> }>
   close(): Promise<void>
 }
 
@@ -370,6 +377,39 @@ export async function connect(config: AtlasConnectionConfig): Promise<AtlasConne
     searchSessions: (query, opts) => request(`sessions/search?scopeId=${encodeURIComponent(scope(opts))}&q=${encodeURIComponent(query)}`),
     replaySession: (sessionId, opts) => request(`sessions/${encodeURIComponent(sessionId)}/replay?scopeId=${encodeURIComponent(scope(opts))}${opts?.pageSize !== undefined ? `&pageSize=${opts.pageSize}` : ''}${opts?.pageToken ? `&pageToken=${encodeURIComponent(opts.pageToken)}` : ''}`),
     follow,
+    async listWorkspaces() {
+      const res = await doFetch(`${base}/execution/workspaces`, { headers: headers() })
+      let body: unknown
+      try {
+        body = await res.json()
+      } catch {
+        throw new AtlasConnectionError(`non-JSON response: HTTP ${res.status}`, 'httpError', res.status)
+      }
+      if (!res.ok) {
+        const err = body as { error?: { code?: string; message?: string } }
+        throw new AtlasConnectionError(
+          err?.error?.message ?? `listWorkspaces failed: HTTP ${res.status}`,
+          err?.error?.code ?? 'httpError',
+          res.status,
+        )
+      }
+      // fail-closed 形校验：{workspaces: [{workspaceId: string}]} 逐项核——
+      // 越界字段（目录内容/凭据形）同样拒（响应仅 workspaceId 字符串契约）。
+      const shape = body as { workspaces?: unknown }
+      if (
+        typeof shape !== 'object' || shape === null
+        || !Array.isArray(shape.workspaces)
+        || !shape.workspaces.every(entry =>
+          typeof entry === 'object' && entry !== null
+          && Object.keys(entry).length === 1
+          && typeof (entry as { workspaceId?: unknown }).workspaceId === 'string'
+          && ((entry as { workspaceId: string }).workspaceId).length > 0,
+        )
+      ) {
+        throw new AtlasConnectionError('listWorkspaces: response shape violates the workspaceId-only contract', 'invalidRequest', res.status)
+      }
+      return { workspaces: shape.workspaces as Array<{ workspaceId: string }> }
+    },
     async close() {
       for (const controller of controllers) controller.abort()
       controllers.clear()

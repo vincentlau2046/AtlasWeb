@@ -17,6 +17,7 @@ import { provideThemeRuntime, installThemeStyles } from '@atlasweb/web-theme/cli
 import { createThemeSettingsStore, provideBrand } from '@atlasweb/web-brand'
 import { apply as applyLayout } from '@atlasweb/web-layout'
 import { apply as applyCode, createHttpExecutionTransport } from '@atlasweb/web-code'
+import { connect } from '@atlasweb/web-connection'
 import type { ThemeSettingsStorage } from '@atlasweb/web-brand'
 
 /** Browser storage adapter (durable theme settings transport backend). */
@@ -57,27 +58,44 @@ async function boot(): Promise<() => void> {
   // A3：URL ?session=<id> = 当前选择提示（读取不等于授权）；随会话切换
   // 由 web-code 回写。阅读锚 = sessionStorage（同标签页刷新恢复）。
   const initialSessionId = new URL(window.location.href).searchParams.get('session') ?? undefined
-  // B1 执行通道挂载（B 附表 §2「probe 后挂载写控件」——probe 本体在 web-code
+  // B1/B3 执行通道挂载（B 附表 §2「probe 后挂载写控件」——probe 本体在 web-code
   // ExecutionController.attach 内）：组合根 workspace 意图 = 打开链接
-  // ?workspace=<id> hint（裁定 R1——默认选择最小形；workspaceAuth 列表面
-  // 候 B3/接线工单）。缺省（无 hint）= 纯只读，执行面零渲染（合同 §10）。
-  // 授权不在客户端裁决：服务端逐命令对表 workspaceAuth（E1），未授权 id
-  // 全命令 403。
+  // ?workspace=<id> hint（深链回退）OR discovery 列表选中项（增量①——列表
+  // 选择面在 web-code，选中项优先于 hint）。缺省（无 hint 且列表空）= 纯只读，
+  // 执行面零渲染（合同 §10）。授权不在客户端裁决：服务端逐命令对表
+  // workspaceAuth（E1），未授权 id 全命令 403。
   const executionWorkspace = new URL(window.location.href).searchParams.get('workspace')
-  const execution = executionWorkspace !== null && executionWorkspace.length > 0
-    ? {
-        transport: createHttpExecutionTransport({ baseUrl: window.location.origin }),
-        binding: () => ({ workspaceId: executionWorkspace }),
-      }
-    : undefined
+  const hasExecutionHint = executionWorkspace !== null && executionWorkspace.length > 0
   try {
+    // 预建连接（增量①）：组合根自己 connect 一次 → credential 预解析传
+    // applyCode（launch token 单次性—— redeem 已在预建连接消费，二次
+    // redeem 必炸；E2E Node Bearer lane 无 ambient cookie 兜底）。
+    const connection = await connect({
+      baseUrl: window.location.origin,
+      ...(launchToken !== undefined ? { launchToken } : { credential: '' }),
+    })
+    // B3 增量① discovery 预取：GET /execution/workspaces（已授权集，launch
+    // 期冻结）。执行面未启用（404）/网络错误 → 空列表 fail-closed（不阻塞
+    // 首屏，不猜测授权）。无 ambient 凭据的失败同走空列表——hint 深链仍在。
+    let workspaces: Array<{ workspaceId: string }> = []
+    try {
+      workspaces = (await connection.listWorkspaces()).workspaces
+    } catch { /* fail-closed：空列表 = 零列表选择面 */ }
+    const execution = hasExecutionHint || workspaces.length > 0
+      ? {
+          transport: createHttpExecutionTransport({ baseUrl: window.location.origin }),
+          binding: () => (hasExecutionHint ? { workspaceId: executionWorkspace as string } : null),
+          ...(workspaces.length > 0 ? { workspaces } : {}),
+        }
+      : undefined
     await ctx.plugin({
       apply: applyCode,
       inject: ['slots'],
     }, {
       connection: {
         baseUrl: window.location.origin,
-        ...(launchToken !== undefined ? { launchToken } : { credential: '' }),
+        // credential 预共享（预建连接已解析）；不再传 launchToken（单次性）。
+        credential: connection.credential ?? '',
       },
       ...(initialSessionId !== undefined ? { initialSessionId } : {}),
       anchorStorage: typeof sessionStorage !== 'undefined' ? sessionStorage : null,

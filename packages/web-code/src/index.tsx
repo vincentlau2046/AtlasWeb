@@ -25,6 +25,7 @@ import { ConversationView } from './views/ConversationView.tsx'
 import { Composer } from './views/Composer.tsx'
 import { StatusStrip } from './views/StatusStrip.tsx'
 import { DeliverablesCard } from './views/DeliverablesCard.tsx'
+import { WorkspaceListPanel } from './views/WorkspaceListPanel.tsx'
 import { SettingsPanel } from './settings/settingsPanel.tsx'
 
 export { WebCodeController } from './controller.ts'
@@ -49,6 +50,7 @@ export { QueueList } from './views/QueueList.tsx'
 export { ApprovalCard } from './views/ApprovalCard.tsx'
 export { StatusStrip } from './views/StatusStrip.tsx'
 export { DeliverablesCard } from './views/DeliverablesCard.tsx'
+export { WorkspaceListPanel } from './views/WorkspaceListPanel.tsx'
 export { SettingsPanel } from './settings/settingsPanel.tsx'
 export type { ThemeSettingsLike } from './settings/settingsPanel.tsx'
 
@@ -72,6 +74,13 @@ export interface WebCodeConfig {
   execution?: {
     transport: ExecutionTransport
     binding(): { workspaceId: string } | null
+    /**
+     * B3 收尾波工单增量①：workspace 发现列表（已授权集，组合根经
+     * GET /execution/workspaces 预取；launch 期冻结）。在场 → 列表选择面
+     * 挂载 + 选中项优先于 binding()（深链 hint 回退）；缺席 → 零列表钩子
+     * （行为回到纯 hint 形）。选择 ≠ 授权：服务端逐命令对表不变（E1）。
+     */
+    workspaces?: Array<{ workspaceId: string }>
   }
   /**
    * B3 设置注入（F9 无空壳开关）：受支持设置面由组合根供给（现唯一族 =
@@ -110,6 +119,8 @@ interface ConversationStandardProps {
   useTargetMessage: <S>(sel: (snapshot: TargetMessageState | null) => S) => S
   /** B2：执行面状态（config.execution 注入时才有）。 */
   useExecution?: <S>(sel: (snapshot: ExecutionStatusModel) => S) => S
+  /** B3 增量①：workspace 列表选择（config.execution.workspaces 在场时才有）。 */
+  useWorkspaceSelection?: <S>(sel: (snapshot: string | null) => S) => S
 }
 
 /** Minimal context face the entry needs (stub-friendly structural form). */
@@ -146,15 +157,43 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
   const controller = new WebCodeController(connection)
   await controller.refreshSessions()
 
-  // B2 执行通道：可选注入，缺省零渲染。绑定组装：workspace 维 = 组合根意图
-  //（config.execution.binding()），会话维 = 当前选中会话（controller.sessionId
-  // 唯一真源，attach 时点读快照——无 URL 回读竞态）；任一维缺 → null →
-  // disabled。会话切换即重 attach（probe → 按新绑定重开事件流）。
+  // B3 增量① workspace 列表选择 store（config.execution.workspaces 在场时才
+  // 建）：面板 onSelect 与 inject 钩子同一写入口；select 幂等同值短路；选择
+  // 变化触发 execution.attach() 换绑（同会话切换重 attach 先例）。选择 ≠ 授权：
+  // 仅改客户端 binding 意图，服务端逐命令 workspaceAuth（E1）不变。
+  let workspaceSelection: {
+    getSnapshot(): string | null
+    subscribe(fn: () => void): () => void
+    select(workspaceId: string): void
+  } | null = null
+  if (config.execution?.workspaces !== undefined) {
+    let selectedWorkspace: string | null = null
+    const listeners = new Set<() => void>()
+    workspaceSelection = {
+      getSnapshot: (): string | null => selectedWorkspace,
+      subscribe(fn: () => void) {
+        listeners.add(fn)
+        return () => { listeners.delete(fn) }
+      },
+      select(workspaceId: string) {
+        if (selectedWorkspace === workspaceId) return
+        selectedWorkspace = workspaceId
+        for (const listener of listeners) listener()
+      },
+    }
+  }
+
+  // B2 执行通道：可选注入，缺省零渲染。绑定组装：workspace 维 = 选中项优先
+  //（增量①列表选择），回退组合根意图（config.execution.binding() = URL hint
+  // 深链）；会话维 = 当前选中会话（controller.sessionId 唯一真源，attach 时点
+  // 读快照——无 URL 回读竞态）；任一维缺 → null → disabled。会话切换即重
+  // attach（probe → 按新绑定重开事件流）。
   let execution: ExecutionController | null = null
   if (config.execution !== undefined) {
     execution = new ExecutionController(config.execution.transport, {
       binding: () => {
-        const workspace = config.execution!.binding()
+        const selected = workspaceSelection?.getSnapshot() ?? null
+        const workspace = selected !== null ? { workspaceId: selected } : config.execution!.binding()
         const sessionId = controller.sessionId.getSnapshot()
         if (workspace === null || sessionId === null) return null
         return { workspaceId: workspace.workspaceId, sessionId }
@@ -163,6 +202,8 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
     await execution.attach()
     const unsubscribeExecution = controller.sessionId.subscribe(() => { void execution?.attach() })
     ctx.effect?.(() => unsubscribeExecution)
+    const unsubscribeSelection = workspaceSelection?.subscribe(() => { void execution?.attach() }) ?? null
+    if (unsubscribeSelection !== null) ctx.effect?.(() => unsubscribeSelection)
   }
 
   // A3 刷新恢复：URL ?session=<id> → 打开该会话并恢复阅读锚（锚指向的
@@ -237,17 +278,19 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
     key: 'conversation',
     id: 'web-code.conversation',
     label: 'Conversation',
-    inject: (): { hooks: { conversation: ObservableSnapshot<ConversationModel>; targetMessage: ObservableSnapshot<TargetMessageState | null>; execution?: ObservableSnapshot<ExecutionStatusModel> } } => ({
+    inject: (): { hooks: { conversation: ObservableSnapshot<ConversationModel>; targetMessage: ObservableSnapshot<TargetMessageState | null>; execution?: ObservableSnapshot<ExecutionStatusModel>; workspaceSelection?: { getSnapshot(): string | null; subscribe(fn: () => void): () => void; select(workspaceId: string): void } } } => ({
       hooks: {
         conversation: controller.conversation,
         targetMessage: controller.targetMessage,
         ...(execution !== null ? { execution: execution.status } : {}),
+        ...(workspaceSelection !== null ? { workspaceSelection } : {}),
       },
     }),
   }, function Conversation(standard: ConversationStandardProps) {
     const conversation = standard.useConversation(snapshot => snapshot)
     const target = standard.useTargetMessage(snapshot => snapshot)
     const exec = standard.useExecution !== undefined ? standard.useExecution(snapshot => snapshot) : null
+    const wsSelected = standard.useWorkspaceSelection !== undefined ? standard.useWorkspaceSelection(snapshot => snapshot) : null
     // 目标与会话绑定：只把属于当前会话的定位锚传给视图（不跨会话泄露）。
     const bound = target !== null && target.sessionId === conversation.sessionId
     // A3 锚缺席明示：恢复目标（绑定了消息）在已加载消息中不存在 → 提示
@@ -256,6 +299,16 @@ export async function apply(ctx: WebCodeContext, config: WebCodeConfig): Promise
       && !conversation.messages.some(message => message.id === target.messageId)
     return (
       <>
+        {/* B3 增量①：workspace 发现列表选择面——仅列表在场时渲染（无列表
+            回归腿 = 零渲染）；选择 ≠ 授权（服务端逐命令对表 E1）。 */}
+        {workspaceSelection !== null && config.execution?.workspaces !== undefined
+          && config.execution.workspaces.length > 0 && (
+          <WorkspaceListPanel
+            workspaces={config.execution.workspaces}
+            selectedId={wsSelected}
+            onSelect={workspaceId => workspaceSelection.select(workspaceId)}
+          />
+        )}
         <ConversationView
           conversation={conversation}
           targetMessageId={bound ? target.messageId : undefined}

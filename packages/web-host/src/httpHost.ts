@@ -305,6 +305,17 @@ export function createHttpHost(options: HttpHostOptions): Server {
           }
           const workspaceAuth = options.execution!.workspaceAuth
           const sub = path.slice('/execution/'.length)
+          // B3 收尾波工单增量①：workspace discovery 端点（路由名定谳）——
+          // GET /execution/workspaces，auth fence 后（本块前置 2b 已验）、
+          // 与 /sessions 同层（/execution 路由族）；响应仅 workspaceId 字符串
+          // （零目录内容/零凭据）；执行面未启用 → 404 零披露（E1）。可见性
+          // ≠ 授权：服务端逐命令 workspaceAuth（E1）对表语义不变。
+          if (sub === 'workspaces') {
+            sendJson(res, 200, {
+              workspaces: workspaceAuth.listGranted().map(id => ({ workspaceId: id })),
+            })
+            return
+          }
           const ws = url.searchParams.get('workspaceId') ?? ''
           if (ws.length === 0) {
             sendJson(res, 400, { error: 'workspaceId required' })

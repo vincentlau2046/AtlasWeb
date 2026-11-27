@@ -24,6 +24,11 @@ export interface WorkspaceAuthorizer {
   isGranted(workspaceId: string): boolean
   /** 授权目录绑定（runTurn cwd 消费面）；未授权 → undefined。 */
   workspaceDir(workspaceId: string): string | undefined
+  /**
+   * 已授权 id 列表（B3 增量① discovery 端点消费面）——仅 id 字符串，零目录
+   * 内容（可见性 ≠ 授权：列表披露不改逐命令 isGranted 对表语义）。
+   */
+  listGranted(): string[]
 }
 
 export function createWorkspaceAuthorizer(): WorkspaceAuthorizer {
@@ -54,6 +59,9 @@ export function createWorkspaceAuthorizer(): WorkspaceAuthorizer {
     },
     workspaceDir(workspaceId) {
       return grants.get(workspaceId)
+    },
+    listGranted() {
+      return [...grants.keys()]
     },
   }
 }

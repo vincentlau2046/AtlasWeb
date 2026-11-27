@@ -126,3 +126,32 @@ describe('B3 SettingsPanel（F9 只展示受支持设置有效值）', () => {
 
 // StatusStripProps 面冻结（视图纯投影 props 形，惯例对齐 QueueListProps）
 type _PropsCheck = StatusStripProps
+
+// —— B3 增量①：WorkspaceListPanel（发现列表选择 UI；选择 ≠ 授权纪律）——
+import { WorkspaceListPanel } from '../src/views/WorkspaceListPanel.tsx'
+
+describe('B3 WorkspaceListPanel（增量① 发现列表）', () => {
+  test('列表渲染：data-workspace-list + 逐项 option 锚点 + 选中标记', () => {
+    const html = renderToString(
+      <WorkspaceListPanel
+        workspaces={[{ workspaceId: 'ws-a' }, { workspaceId: 'ws-b' }]}
+        selectedId='ws-b'
+        onSelect={() => {}}
+      />,
+    )
+    expect(html).toContain('data-workspace-list')
+    expect(html).toContain('data-workspace-option="ws-a"')
+    expect(html).toContain('data-workspace-option="ws-b"')
+    expect(html).toContain('data-workspace-selected="ws-b"')
+    expect(html).not.toContain('data-workspace-selected="ws-a"')
+  })
+
+  test('无选中：零 selected 标记；空列表 → 零渲染（fail-closed 非占位）', () => {
+    const none = renderToString(
+      <WorkspaceListPanel workspaces={[{ workspaceId: 'ws-a' }]} selectedId={null} onSelect={() => {}} />,
+    )
+    expect(none).toContain('data-workspace-option="ws-a"')
+    expect(none).not.toContain('data-workspace-selected')
+    expect(renderToString(<WorkspaceListPanel workspaces={[]} selectedId={null} onSelect={() => {}} />)).toBe('')
+  })
+})
