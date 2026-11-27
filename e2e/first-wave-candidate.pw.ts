@@ -184,12 +184,9 @@ test('append at mid-read keeps position; new message visible at tail', async ({ 
   try {
     await openLongSession(page, host)
     const transcript = page.locator('[data-transcript]')
-    // 滚离尾部到中段（循环小步上滚直到 m180 入视口——不依赖行高估计）。
-    for (let round = 0; round < 30 && !(await page.locator('[data-message-id="m180"]').isVisible()); round++) {
-      await transcript.hover()
-      await page.mouse.wheel(0, -2000)
-      await page.waitForTimeout(120)
-    }
+    // 滚离尾部到中段（viewport 根修波工单 §2 根修 helper——容器相交退出判据
+    // + mounted 后 bbox 双向校正；旧形 isVisible() 提前退出缺陷见 helper 注释）。
+    await scrollMidToM180(page)
     await expect(page.locator('[data-message-id="m180"]')).toBeInViewport()
 
     // runner 侧 append 一条新消息（follow poll 循环拾取）；模型更新信号 =
@@ -222,16 +219,66 @@ test('append at mid-read keeps position; new message visible at tail', async ({ 
   }
 })
 
+/**
+ * 中段滚位根修 helper（viewport 根修波工单 §2 修形①，test-side only）。
+ *
+ * 旧形缺陷（R1 探针直证，e2e/r1-probe.pw.ts @ 锚 #2 实跑报告归档 job tmp）：
+ * 旧循环退出条件 = `isVisible()`（有 bounding box 即真）——虚拟化
+ * （@tanstack/react-virtual，REPLAY_WINDOW_SIZE=60 + REPLAY_OVERSCAN=10，
+ * overscan 带实测 ≈620px）下 **overscan 缓冲行挂载即 isVisible=true**：
+ * 探针第 6 轮 m180 挂载于 transcript 容器下缘外 8px（m180 top 595 vs 容器
+ * bottom 587，挂载窗 160-189 / index 180 在 overscan 带内）→ 循环提前退出
+ * → 断言 `toBeInViewport` ratio 0（Playwright 计入祖先 overflow 裁剪面）
+ * ×3 确定性红。步长 residue 漂移（实际步长 ≈1906-1908px vs 请求 2000，
+ * 成功窗宽 ≈(H+h)/2000≈30%）+ B 系 chrome（01081e4 DeliverablesCard 实测
+ * 109px 纵向占位）改 H 后相位落 skip 带 → A-gate 时代几何巧合失效。
+ *
+ * 根修形（工单 §2 修形① mounted 后 bbox 双向校正）：
+ * - 退出判据 = m180 boundingClientRect 与 transcript 容器相交 ≥1px（轮内
+ *   page.evaluate 自算——滚动机制正确参照；最终门 = 调用方 toBeInViewport
+ *   断言零改动，两谓词非同一、不一致时断言如实红，禁为对齐断言改断言）；
+ * - mounted 后按侧别双向校正：处容器上带 → 匀相 wheel -400px（内容下移、
+ *   m180 自顶入视）；处下带 → 匀相 wheel +400px（内容上移、m180 自底入视）；
+ * - unmounted 粗相沿尾→头行进方向 -2000px；若上轮已见下带（越过）则回滚收；
+ * - 30 轮预算耗尽不判死：最终门交 toBeInViewport 断言如实红（§2 谓词纪律）。
+ * 参数钉（工单 §6-5）：粗相 -2000px/120ms、匀相 ≤400px、轮数上限 30、
+ * 禁 scrollIntoViewIfNeeded（改变受测滚动机理——产品锚恢复 = 真滚位驱动）。
+ */
+async function scrollMidToM180(page: Page): Promise<void> {
+  const transcript = page.locator('[data-transcript]')
+  let lastSide: 'above' | 'below' = 'above'
+  for (let round = 0; round < 30; round++) {
+    const side = await page.evaluate((): 'above' | 'below' | 'intersect' | 'unmounted' => {
+      const el = document.querySelector('[data-transcript]')
+      const m = document.querySelector('[data-message-id="m180"]')
+      if (el === null || m === null) return 'unmounted'
+      const c = el.getBoundingClientRect()
+      const r = m.getBoundingClientRect()
+      if (r.bottom <= c.top) return 'above'
+      if (r.top >= c.bottom) return 'below'
+      return 'intersect'
+    })
+    if (side === 'intersect') return
+    await transcript.hover()
+    if (side === 'above') {
+      await page.mouse.wheel(0, -400)
+      lastSide = 'above'
+    } else if (side === 'below') {
+      await page.mouse.wheel(0, 400)
+      lastSide = 'below'
+    } else {
+      // unmounted：粗相行进（尾→头）；若上轮已见下带则已被越过，回滚收。
+      await page.mouse.wheel(0, lastSide === 'below' ? 400 : -2000)
+    }
+    await page.waitForTimeout(120)
+  }
+}
+
 /** A3 共用：打开长样本并滚到中段 m180，等锚写入（250ms debounce + 余量）。 */
 async function readToMidAndSettle(page: Page): Promise<void> {
   await page.click('[data-session-id="long-0360"]')
   await expect(page.locator('[data-message-id="m360"]')).toBeVisible({ timeout: 20_000 })
-  const transcript = page.locator('[data-transcript]')
-  for (let round = 0; round < 30 && !(await page.locator('[data-message-id="m180"]').isVisible()); round++) {
-    await transcript.hover()
-    await page.mouse.wheel(0, -2000)
-    await page.waitForTimeout(120)
-  }
+  await scrollMidToM180(page)
   await expect(page.locator('[data-message-id="m180"]')).toBeInViewport()
   await page.waitForTimeout(800)
 }
