@@ -3,7 +3,7 @@
   "kind": "pairing-rollback-attestation",
   "verdict": "closed",
   "date": "2026-11-27",
-  "reportCommit": "0f5fe4b9abc8b22a54f5c730e003d77808ae6d94",
+  "reportCommit": "b76abc74a38b37f7161a3545c9ea137f58276e6b",
   "carrier": {
     "packageName": "@atlaswork/atlascode",
     "upgradeVersion": "0.1.129",

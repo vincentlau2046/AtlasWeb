@@ -5,7 +5,7 @@
     "": {
       "name": "atlasweb",
       "dependencies": {
-        "@atlaswork/atlascode": "0.1.127",
+        "@atlaswork/atlascode": "0.1.129",
       },
       "devDependencies": {
         "@playwright/test": "1.61.1",
@@ -64,7 +64,7 @@
       "name": "@atlasweb/web-host",
       "version": "0.0.0",
       "dependencies": {
-        "@atlaswork/atlascode": "0.1.127",
+        "@atlaswork/atlascode": "0.1.129",
       },
     },
     "packages/web-layout": {
@@ -188,7 +188,7 @@
 
     "@atlasweb/web-theme": ["@atlasweb/web-theme@workspace:packages/web-theme"],
 
-    "@atlaswork/atlascode": ["@atlaswork/atlascode@0.1.127", "https://registry.npmmirror.com/@atlaswork/atlascode/-/atlascode-0.1.127.tgz", { "dependencies": { "@alcalzone/ansi-tokenize": "^0.3.0", "@commander-js/extra-typings": "15", "@modelcontextprotocol/sdk": "^1.30.0", "@opentelemetry/api": "^1.9.1", "@vscode/ripgrep": "1.18.0", "ajv": "^8.20.0", "asciichart": "^1.5.25", "auto-bind": "^5.0.1", "axios": "^1.20.0", "bidi-js": "^1.0.3", "chalk": "^6.0.0", "chokidar": "^5.0.0", "cli-boxes": "^4.0.1", "cli-highlight": "^2.1.11", "code-excerpt": "^4.0.0", "diff": "9.0.0", "emoji-regex": "^10.6.0", "env-paths": "^4.0.0", "execa": "^10.0.1", "fflate": "^0.8.3", "figures": "^6.1.0", "fuse.js": "^7.5.0", "highlight.js": "^10.7.3", "https-proxy-agent": "^9.1.0", "ignore": "^7.0.8", "indent-string": "^5.0.0", "ink": "^7.1.1", "jsonc-parser": "^3.3.1", "lodash-es": "^4.18.1", "lru-cache": "^11.5.2", "marked": "^18.0.11", "openai": "^7.9.0", "p-map": "^7.0.7", "picomatch": "^4.0.7", "proper-lockfile": "^4.1.2", "qrcode": "^1.5.4", "react": "^19.2.8", "react-reconciler": "^0.33.0", "semver": "^7.6.0", "shell-quote": "1.10.0", "strip-ansi": "^7.2.0", "supports-hyperlinks": "^4.5.0", "tree-kill": "^1.2.2", "turndown": "^7.2.4", "undici": "^7.30.1", "usehooks-ts": "^3.1.1", "vscode-jsonrpc": "^9.0.2", "wrap-ansi": "^10.0.1", "ws": "^8.21.3", "xss": "^1.0.15", "yaml": "^2.9.0", "zod": "^4.5.4" }, "optionalDependencies": { "audio-capture-napi": "^0.0.1", "image-processor-napi": "^0.0.1", "modifiers-napi": "^0.0.1", "plist": "^5.0.0", "sharp": "^0.35.5", "url-handler-napi": "^0.0.1" }, "bin": { "atlas": "dist/cli.js", "atlascode": "dist/cli.js" } }, "sha512-XqQzBa8Ria1U8McZTZzh+mUeWtcxnRAQUNsd3Fd+mlKycr/EhSBd9kzaSijbJiUfUyR0mBGmk49Js9LfKY66uQ=="],
+    "@atlaswork/atlascode": ["@atlaswork/atlascode@0.1.129", "https://registry.npmmirror.com/@atlaswork/atlascode/-/atlascode-0.1.129.tgz", { "dependencies": { "@alcalzone/ansi-tokenize": "^0.3.0", "@commander-js/extra-typings": "15", "@modelcontextprotocol/sdk": "^1.30.0", "@opentelemetry/api": "^1.9.1", "@vscode/ripgrep": "1.18.0", "ajv": "^8.20.0", "asciichart": "^1.5.25", "auto-bind": "^5.0.1", "axios": "^1.20.0", "bidi-js": "^1.0.3", "chalk": "^6.0.0", "chokidar": "^5.0.0", "cli-boxes": "^4.0.1", "cli-highlight": "^2.1.11", "code-excerpt": "^4.0.0", "diff": "9.0.0", "emoji-regex": "^10.6.0", "env-paths": "^4.0.0", "execa": "^10.0.1", "fflate": "^0.8.3", "figures": "^6.1.0", "fuse.js": "^7.5.0", "highlight.js": "^10.7.3", "https-proxy-agent": "^9.1.0", "ignore": "^7.0.8", "indent-string": "^5.0.0", "ink": "^7.1.1", "jsonc-parser": "^3.3.1", "lodash-es": "^4.18.1", "lru-cache": "^11.5.2", "marked": "^18.0.11", "openai": "^7.9.0", "p-map": "^7.0.7", "picomatch": "^4.0.7", "proper-lockfile": "^4.1.2", "qrcode": "^1.5.4", "react": "^19.2.8", "react-reconciler": "^0.33.0", "semver": "^7.6.0", "shell-quote": "1.10.0", "strip-ansi": "^7.2.0", "supports-hyperlinks": "^4.5.0", "tree-kill": "^1.2.2", "turndown": "^7.2.4", "undici": "^7.30.1", "usehooks-ts": "^3.1.1", "vscode-jsonrpc": "^9.0.2", "wrap-ansi": "^10.0.1", "ws": "^8.21.3", "xss": "^1.0.15", "yaml": "^2.9.0", "zod": "^4.5.4" }, "optionalDependencies": { "audio-capture-napi": "^0.0.1", "image-processor-napi": "^0.0.1", "modifiers-napi": "^0.0.1", "plist": "^5.0.0", "sharp": "^0.35.5", "url-handler-napi": "^0.0.1" }, "bin": { "atlas": "dist/cli.js", "atlascode": "dist/cli.js" } }, "sha512-Zk6i5BdlRYgTsR4zAkCYehs789r9Yz7TNSizePuyaTcwqHiBqVENmPj3PPW2UJnz2aC3spnb6cvgUv/46oGpmQ=="],
 
     "@babel/code-frame": ["@babel/code-frame@7.29.7", "https://registry.npmmirror.com/@babel/code-frame/-/code-frame-7.29.7.tgz", { "dependencies": { "@babel/helper-validator-identifier": "^7.29.7", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw=="],
 
