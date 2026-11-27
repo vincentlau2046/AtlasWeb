@@ -118,3 +118,39 @@ B3 谎称达成。总验收链 F8 对表按本登记语义执行（f4 已裁：�
 - 回归：web-code + smoke 109 pass / 0 fail（root-supply 接线断言随三注册
   行为同步 2→3）；全仓回归随切片门终跑。
 
+
+### §5.2 增量① 回执（workspace 发现列表面，2026-11-27，commit 45b6d6d）
+
+- RED 确认：host/connection 6 fail + web-code 4 fail/1 error（10 fail）。
+- GREEN 落码（11 文件 470 insertions / 18 deletions，commit 45b6d6d）：
+  - web-host：`workspaceAuth.listGranted()`（仅 id 字符串，零目录内容）+
+    `httpHost` GET `/execution/workspaces` 路由（auth fence 后、/execution
+    路由族、未认证 401 零泄漏、执行面未启用 404、空授权 → 空数组）。
+  - web-connection：`listWorkspaces()`——裸 JSON（/execution 族非 envelope）
+    + fail-closed 形校验（每项恰 1 键且 workspaceId 非空串；越界字段 →
+    invalidRequest；404 → AtlasConnectionError 带 status）。
+  - web-code：`WorkspaceListPanel.tsx`（data-workspace-list/-option/-selected
+    词表；空列表零渲染 fail-closed）+ `config.execution.workspaces` 加性类型 +
+    选择 store（apply 内 getSnapshot/subscribe/select 三方法形；select 幂等
+    同值短路）+ binding wrap（**选中项优先，`?workspace=` hint 深链回退**）+
+    选择变化触发 `execution.attach()` 换绑（同会话切换先例）+ main 注册
+    inject `workspaceSelection` 钩子 + Conversation 组件面板渲染（置
+    ConversationView 前）。
+  - 组合根 main.tsx：**预建连接**（credential 预解析传 applyCode——launch
+    token 单次性，防 E2E Bearer lane 双重 redeem 炸裂）+ discovery 预取
+    （404/错误 → 空列表 fail-closed，不阻塞首屏）+ 挂载条件（hint 在场 OR
+    列表非空；**列表空且无 hint = 纯只读零挂载**，保只读红线）。
+  - views.css：`.web-code-workspaces` 族（对表 deliverables 族先例）。
+- 测试回执：workspaceDiscovery 4 腿（返值≡已授权集且零 dir 泄漏 / 无 cookie
+  401 零泄漏 / execution off 404 / 空授权空数组）+ workspaceList 3 腿（裸
+  JSON 交付 / 5 形外形状 invalidRequest / 404 透传）+ b3Views 2 腿 + 
+  executionBinding 4 腿（① 列表选择→binding 源=选中项 {workspaceId:'ws-b',
+  sessionId:'s1'} phase ready；② 无选择无 hint→phase disabled 零开流回归形；
+  hint 优先级：ws-hint 先生效 → select('ws-a') 换绑 ws-a；回归：缺 workspaces
+  → 钩子 undefined）全 GREEN。
+- 回归：全仓 **538 pass / 1 skip / 0 fail**（71 文件）；gateTruthTable
+  clean-candidate gap 提交前如实 gap、提交后复评 5/5 翻转（自指机制按设计
+  工作）。
+- 纪律保持：**选择 ≠ 授权**——选择只改客户端 binding 意图，服务端逐命令
+  workspaceAuth（E1）对表不变；pw 腿（列表选择 wire 形 ≡ hint 形）随 §5.4
+  e2e 波落。
