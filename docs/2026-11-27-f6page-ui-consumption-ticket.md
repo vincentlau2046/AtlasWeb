@@ -66,3 +66,10 @@ RED→GREEN 判定单（e2e）+ 审计 PASS + 超帽种子实装腿（G7 同族�
   - **轨 A（即时）**：viewport 根修 @9b28206 候件条件已满足（GREEN 判定单已出，无在途 ×3 轮，跨测试文件变更防面解除）→ Main 合 main + push；**test-side-only 零打包面 → 锚 #2 不重出，重建核验字节恒等即直证**（SRI 锚 #2 节补构建源推进登记行）；e2e 根修验收轮即刻（§6 六格 ×3 + 断言零改动审计；canon 名冻结副本 + `--config e2e/playwright.config.ts` 两教训随信号）。根修收口 = 第一波 §7-11 格 1 豁免销项。
   - **轨 B（并行）**：follow 切片方案双门 → 落码合并 → **锚 #3 重出**（server 字节变）→ 本波 GREEN 复判（e2e v3 腿基座就绪复判成本低；格 8 22/22 应全绿——viewport 四红腿已由轨 A 转绿 + follow 销）→ 本波收口 + F6-PAGE 登记行翻转注记（§6 末句兑现）。
 - **登记面处置**：① 超帽 follow 流内错形适配器终态处理不重连、UI 无从与 replay 429 区分 → **挂账池**（error 呈现区分度，非本波阻面）；② #282 viewport 波判读合流时点 → 本裁定双轨即协调（rootfix 判定锚 = 锚 #2 恒等核验面；本波复判锚 = 锚 #3）。
+
+## §8-1 勘正（f4，2026-11-27；e2e 补充信号 + 判词侧 Atlasweb-F4 抽核，f4 活码直证 MATCH）
+
+- **格 1 修向域更正**：§8「web-session-runtime 域」不确 → **AtlasCode 引擎侧 session runtime**——错误帧串「projection exceeds limit (6004528 bytes)」与 `src/atlascode/web/follow.ts:371-375`（issueBaseline：buildProjection → serializedProjectionBytes > limits.maxProjectionBytes → setTerminal resourceLimit）逐字吻合 + `:510` emitReplacement 同限 + 帽源 `src/atlascode/web/limits.ts`（零隐式截断纪律在档）；f4 活码直证 MATCH（判定单 §3 勘正注记已折入，e2e + 判词侧同证）。**§8 其余裁定面不变**（切片入本波、双门程序、双轨排程、登记面①②）。
+- **轨 B 修订（域更正后果）**：follow baseline 根修切片 = **AtlasCode 域切片**——Main 出 AtlasCode 侧切片方案（follow baseline 分页/增量形 + limits 帽策略候选对表 + §0 活码重核）→ 双门（Atlasweb-F4 审视 + Atlas-reveiw 审计）→ AtlasCode 落码 → **carrier 候 0.1.130 走段 L 形发布链：L4 用户亲署候件（0.1.129 预授权不外溢新版本号，届时呈请）** → AtlasWeb pin bump + 确定性重建 → **锚 #3 重出**（bundle 字节变）→ GREEN 复判（e2e v3 腿基座）→ 本波收口 + F6-PAGE 登记行翻转注记。
+- **并池记账采认（判词侧建议）**：fail-closed 张力面家族并池——① 超帽 follow HTTP 200 流内错形（适配器终态处理不重连，UI 无从与 replay 429 区分）② `--workspace` 目录缺席静默接受——同族记账，加固裁量并池处理。
+- 轨 A 不变：viewport 根修 @9b28206 即刻合并（test-side-only → 锚 #2 不重出，重建核验字节恒等直证）→ e2e 根修验收轮即刻。
