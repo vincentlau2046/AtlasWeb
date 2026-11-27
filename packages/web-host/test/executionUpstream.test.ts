@@ -3,7 +3,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createExecutionUpstream, createSpawnCliTurnRunner, streamJsonApprovalRequest, streamJsonTextDelta } from '../src/execution/upstream'
+import { createExecutionUpstream, createSpawnCliTurnRunner, streamJsonApprovalRequest, streamJsonResult, streamJsonTextDelta } from '../src/execution/upstream'
 import type { SpawnSeam } from '../src/execution/upstream'
 import { createWorkspaceAuthorizer } from '../src/execution/workspaceAuth'
 import type { WebExecutionCommand } from '@atlaswork/atlascode/web-session-runtime/execution'
@@ -239,12 +239,14 @@ describe('W1 审批通道接线（0.1.129 呈批书 §2 形 A，批复 @af5684e9
     emit: (l: string) => void
     close: (code: number | null) => void
     stdinWrites: string[]
+    stdinEnds: () => number
     args: () => readonly string[]
     opts: () => Record<string, unknown> | undefined
   } {
     const stdoutListeners: Array<(c: Buffer) => void> = []
     const closeListeners: Array<(code: number | null) => void> = []
     const stdinWrites: string[] = []
+    let stdinEndCount = 0
     let capturedArgs: readonly string[] = []
     let capturedOpts: Record<string, unknown> | undefined
     const child = {
@@ -252,6 +254,7 @@ describe('W1 审批通道接线（0.1.129 呈批书 §2 形 A，批复 @af5684e9
       stderr: { on: () => {} },
       stdin: {
         write: (s: string) => { stdinWrites.push(s); return true },
+        end: () => { stdinEndCount += 1 },
         on: () => {},
       },
       on: (ev: string, l: (code: number | null) => void) => { if (ev === 'close') closeListeners.push(l) },
@@ -267,6 +270,7 @@ describe('W1 审批通道接线（0.1.129 呈批书 §2 形 A，批复 @af5684e9
       emit: (l) => stdoutListeners.forEach((x) => x(Buffer.from(l))),
       close: (code) => closeListeners.forEach((x) => x(code)),
       stdinWrites,
+      stdinEnds: () => stdinEndCount,
       args: () => capturedArgs,
       opts: () => capturedOpts,
     }
@@ -371,6 +375,43 @@ describe('W1 审批通道接线（0.1.129 呈批书 §2 形 A，批复 @af5684e9
     expect(await p).toBe('completed')
     expect(deltas).toEqual(['ok'])
     expect(f.stdinWrites).toEqual([])
+  })
+
+  test('⑥ result 行 → stdin end() 释放（引擎自然退出收口）+ 结算仍以 close code 为权威', async () => {
+    // 根因定谳（2026-11-27 ctl2）：三 pipe 形下 host 永持 stdin → 引擎
+    // result 后事件循环被 stdin 句柄持住 → close 永不 fire → 回合悬挂
+    // （r-20261122 悬挂同形第二犯）。本腿钉住：result 行到即 end()；
+    // end 前（delta/system 行）零 end；end 后 close(0) → completed。
+    const f = fakeApprovalSpawn()
+    const runner = createSpawnCliTurnRunner({ workspaceDir: () => '/tmp/ws1', spawn: f.seam })
+    const p = runner({ ...runArgs, requestApproval: async () => 'approved' })
+    f.emit(line({ type: 'system', subtype: 'init' }))
+    await tick()
+    expect(f.stdinEnds(), 'non-result lines must not end stdin').toBe(0)
+    f.emit(line({ type: 'assistant', message: { content: [{ type: 'text', text: 'almost done' }] } }))
+    await tick()
+    expect(f.stdinEnds()).toBe(0)
+    f.emit(line({ type: 'result', subtype: 'success' }))
+    await tick()
+    expect(f.stdinEnds(), 'result line must end stdin (engine event-loop release)').toBe(1)
+    f.close(0)
+    expect(await p).toBe('completed')
+    // 结算权威零变更：close 非 0 → failed（即使 result 已到）。
+    const f2 = fakeApprovalSpawn()
+    const runner2 = createSpawnCliTurnRunner({ workspaceDir: () => '/tmp/ws1', spawn: f2.seam })
+    const p2 = runner2({ ...runArgs, requestApproval: async () => 'approved' })
+    f2.emit(line({ type: 'result', subtype: 'error_during_execution' }))
+    await tick()
+    f2.close(1)
+    expect(await p2).toBe('failed')
+  })
+
+  test('streamJsonResult 判定：result → true；其他/非法行/空 → false', () => {
+    expect(streamJsonResult(line({ type: 'result', subtype: 'success' }))).toBe(true)
+    expect(streamJsonResult(line({ type: 'assistant', message: { content: [] } }))).toBe(false)
+    expect(streamJsonResult(line({ type: 'approval_request', approval_id: 'a' }))).toBe(false)
+    expect(streamJsonResult('not json')).toBe(false)
+    expect(streamJsonResult('')).toBe(false)
   })
 
   test('approval_request 行解析：合法形/非 approval_request/缺 approval_id → null', () => {

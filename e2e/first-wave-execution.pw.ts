@@ -24,16 +24,28 @@
  *    — 收尾波工单增量①：无 hint 入口 → 发现列表选择 → 提交 wire 形
  *    bind.workspaceId = 选中项（≡ hint 形）+ 引擎真跑 + JSONL 落盘证据；
  *    选择 ≠ 授权（服务端逐命令 E1）。
+ * 7. `approve grants the pending tool and records kernel evidence` — 审批
+ *    正腿（W1 切片解阻，0.1.129 呈批书 §2 形 A）：UI 提交 Write 回合 →
+ *    审批卡（approval.requested 投影）→ 批准 → 隔离文件实际创建（fs 证据）
+ *    + JSONL 落盘 + approval.settled decision=approved（SSE 旁路内核证据）。
+ * 8. `deny leaves the workspace untouched` — 拒绝腿：同形拒绝 → 文件零
+ *    出现 + approval.settled decision=denied + 回合以 completed 收口
+ *    （引擎以拒答文本继续）。
  *
- * **受阻登记（R2，非静默缺席）**：审批正腿全链（批准后隔离文件实际改变/
- * 拒绝/过期/跨域零改变、双客户端竞态 E4、decide turn-exact 正腿、重连腿的
- * 审批半边）在产品道结构性不可达——spawnCliTurnRunner 不消费 requestApproval
- * （B1 形保留，runTurn 审批接线候后续切片）；kernel/host 审批面已由单测覆盖
- * （executionQueueApprovals.test / executionRoutes.test）。
+ * **受阻登记处置（R2 → W1 解阻，非静默缺席）**：审批正腿曾因
+ * spawnCliTurnRunner 不消费 requestApproval 结构性不可达（B1 形保留）；
+ * W1（0.1.129 呈批书 §2，批复 @af5684e9）接线后正腿 7/8 可达。过期/跨域
+ * 零改变、双客户端竞态 E4、重连腿的审批半边仍候后续切片（kernel/host
+ * 审批面由单测覆盖：executionQueueApprovals.test / executionRoutes.test）。
+ *
+ * **carrier 版本耦合**：腿 7/8（及全部 execution 腿）需引擎 carrier
+ * ≥0.1.129（--approval-channel flag 支持）；pin 0.1.128 下引擎报 unknown
+ * option → 全腿红为预期中间态（§4 修形序：pw 全腿 gate 在 pin bump + 格 I
+ * 合一 commit 之后执行）。
  *
  * 报告卫生：令牌只在 runner 内存；不输出宿主绝对路径。
  */
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { request as httpRequest } from 'node:http'
 import { join } from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
@@ -127,9 +139,9 @@ function userLineCount(host: ExecutionHostHandle): number {
   return lines.filter(l => { try { return (JSON.parse(l) as { type?: unknown }).type === 'user' } catch { return false } }).length
 }
 
-/** 事件帧归一（控制帧展开；id/type/bind.turnId/cursor 抽取）。 */
-function eventFrames(frames: unknown[]): Array<{ id: string; type: string; turnId: string | null; cursor: string | null }> {
-  const out: Array<{ id: string; type: string; turnId: string | null; cursor: string | null }> = []
+/** 事件帧归一（控制帧展开；id/type/bind.turnId/cursor/payload 抽取——payload 供 approval.settled decision 断言）。 */
+function eventFrames(frames: unknown[]): Array<{ id: string; type: string; turnId: string | null; cursor: string | null; payload: Record<string, unknown> }> {
+  const out: Array<{ id: string; type: string; turnId: string | null; cursor: string | null; payload: Record<string, unknown> }> = []
   for (const frame of frames) {
     const rec = frame as Record<string, unknown>
     if (rec.kind === 'baseline' || rec.kind === 'delta' || rec.kind === 'expired') {
@@ -143,6 +155,7 @@ function eventFrames(frames: unknown[]): Array<{ id: string; type: string; turnI
       type: rec.type,
       turnId: typeof bind?.turnId === 'string' ? bind.turnId : null,
       cursor: typeof rec.cursor === 'string' ? rec.cursor : null,
+      payload: rec.payload !== null && typeof rec.payload === 'object' ? rec.payload as Record<string, unknown> : {},
     })
   }
   return out
@@ -413,6 +426,123 @@ test('execution stream reconnects exactly once', async ({ page }) => {
     expect(aTurn.some(e => e.type === 'turn.accepted'), 'accepted delivered pre-disconnect').toBe(true)
     expect(bEvents.some(e => e.type === 'turn.accepted'), 'resumed stream must not replay accepted').toBe(false)
   } finally {
+    host.close()
+  }
+})
+
+// —— W1 审批正腿（0.1.129 呈批书 §2 形 A，批复 @af5684e9）——
+// 全链：UI 提交 Write 回合 → 引擎 approval_request（wire）→ upstream 翻译
+// requestApproval → kernel approval.requested 事件 → ApprovalCard → 批准/
+// 拒绝 → kernel decide → approval.settled → upstream 决策行回写 → 引擎
+// 放行/拒绝。内核证据 = SSE 旁路 + 隔离工作区 fs（形 A 纪律：host 零直通）。
+
+const APPROVAL_PROOF_PROMPT = 'Create a file named approval-proof.txt in the current directory containing exactly APPROVED-PROOF. Use the Write tool.'
+
+/** 打开执行面 + 先行 SSE 旁路（审批事件在提交前挂采集，不丢帧）。 */
+async function openApprovalLeg(page: Page, host: ExecutionHostHandle): Promise<{ sse: SseReader }> {
+  await page.goto(host.redeemUrl)
+  const cookie = await cookieHeader(page, host)
+  const sse = openExecutionSse(host, cookie, {})
+  await sse.opened
+  await openExecutionApp(page, host, host.workspaceId)
+  return { sse }
+}
+
+/** 等审批卡在场并取 approvalId（引擎先答 LLM 再发 approval_request，长超时）。 */
+async function awaitApprovalCard(page: Page): Promise<string> {
+  const card = page.locator('[data-exec-approval]').first()
+  await expect(card).toBeVisible({ timeout: 120_000 })
+  const approvalId = await card.getAttribute('data-exec-approval')
+  expect(approvalId, 'approval card carries the kernel approvalId').toBeTruthy()
+  return approvalId!
+}
+
+test('approve grants the pending tool and records kernel evidence', async ({ page }) => {
+  const host = await launchInstalledBinExecution(installed)
+  const { sse } = await openApprovalLeg(page, host)
+  try {
+    const proofPath = join(host.workspaceDir, 'approval-proof.txt')
+    expect(existsSync(proofPath), 'precondition: workspace starts without the proof file').toBe(false)
+
+    const baseline = userLineCount(host)
+    await page.locator('[data-exec-input]').fill(APPROVAL_PROOF_PROMPT)
+    await page.locator('[data-exec-submit]').click()
+    await expect(page.locator('[data-exec-running]')).toBeVisible({ timeout: 30_000 })
+
+    // 审批卡（approval.requested 投影）→ 批准（真 UI 按钮，非 wire POST 旁路）。
+    const approvalId = await awaitApprovalCard(page)
+    await page.locator(`[data-exec-approve="${approvalId}"]`).click()
+
+    // 回合收口：队列排空（批准后引擎继续完成 Write 与答复）。
+    await expect(page.locator('[data-exec-queue]')).toHaveCount(0, { timeout: 120_000 })
+
+    // fs 证据：隔离工作区内文件实际创建（批准真实放行，非 UI 假象）。
+    const proof = readFileSync(proofPath, 'utf8')
+    expect(proof).toContain('APPROVED-PROOF')
+
+    // 磁盘证据：回合落盘（user 行数增长）。注：jsonl 形里 tool_result 也以
+    // type:'user' 落盘——审批腿走 Write 工具，故 +1 prompt + ≥1 tool_result
+    // （实测 +2）；+1 精确形只对纯文本回合（PONG 腿）成立，此处断增长。
+    expect(userLineCount(host), 'approved turn persists its prompt line').toBeGreaterThan(baseline)
+
+    // 内核证据（SSE 旁路）：approval.requested → approval.settled approved，
+    // 回合恰一个终态。
+    await waitFor(() => eventFrames(sse.frames).some(e => e.type === 'approval.settled'), 30_000, 'approval.settled to reach the bypass stream')
+    const events = eventFrames(sse.frames)
+    const requested = events.find(e => e.type === 'approval.requested' && e.payload.approvalId === approvalId)
+    expect(requested, 'approval.requested bypass evidence for the card id').toBeTruthy()
+    const settled = events.filter(e => e.type === 'approval.settled' && e.payload.approvalId === approvalId)
+    expect(settled.length, 'exactly one settled event for the approval').toBe(1)
+    expect(settled[0]!.payload.decision, 'approval settles approved').toBe('approved')
+    const terminalTurn = settled[0]!.turnId
+    const terminals = events.filter(e => TERMINALS.has(e.type) && e.turnId === terminalTurn)
+    expect(terminals.length, 'approval turn settles with exactly one terminal').toBe(1)
+  } finally {
+    sse.close()
+    host.close()
+  }
+})
+
+test('deny leaves the workspace untouched', async ({ page }) => {
+  const host = await launchInstalledBinExecution(installed)
+  const { sse } = await openApprovalLeg(page, host)
+  try {
+    const proofPath = join(host.workspaceDir, 'approval-proof.txt')
+
+    const baseline = userLineCount(host)
+    await page.locator('[data-exec-input]').fill(APPROVAL_PROOF_PROMPT)
+    await page.locator('[data-exec-submit]').click()
+    await expect(page.locator('[data-exec-running]')).toBeVisible({ timeout: 30_000 })
+
+    // 审批卡 → 拒绝。
+    const approvalId = await awaitApprovalCard(page)
+    await page.locator(`[data-exec-deny="${approvalId}"]`).click()
+
+    // 回合收口（拒绝后引擎以拒答文本继续，completed 预注册）。
+    await expect(page.locator('[data-exec-queue]')).toHaveCount(0, { timeout: 120_000 })
+
+    // fs 证据：文件零出现（拒绝真实拦截）——待 settled + 终态都到齐后判。
+    await waitFor(() => {
+      const settledDenied = eventFrames(sse.frames).find(e => e.type === 'approval.settled' && e.payload.approvalId === approvalId && e.payload.decision === 'denied')
+      if (!settledDenied) return false
+      return eventFrames(sse.frames).some(e => TERMINALS.has(e.type) && e.turnId === settledDenied.turnId)
+    }, 30_000, 'denied approval and its turn terminal to reach the bypass stream')
+    expect(existsSync(proofPath), 'denied tool must never touch the workspace').toBe(false)
+
+    // 磁盘证据：回合确实跑了（user 行数增长，含拒绝 tool_result 行——jsonl
+    // 形里 tool_result 亦 type:'user'；同形注记见批准腿）。
+    expect(userLineCount(host), 'denied turn still persists its user line').toBeGreaterThan(baseline)
+
+    // 内核证据（SSE 旁路）：settled denied + 回合 completed（预注册形）。
+    const events = eventFrames(sse.frames)
+    const settled = events.filter(e => e.type === 'approval.settled' && e.payload.approvalId === approvalId)
+    expect(settled.length, 'exactly one settled event for the denied approval').toBe(1)
+    expect(settled[0]!.payload.decision, 'approval settles denied').toBe('denied')
+    const terminals = events.filter(e => TERMINALS.has(e.type) && e.turnId === settled[0]!.turnId)
+    expect(terminals.length, 'denied turn settles with exactly one terminal').toBe(1)
+    expect(terminals[0]!.type, 'denied turn completes (engine continues with the refusal)').toBe('turn.completed')
+  } finally {
+    sse.close()
     host.close()
   }
 })

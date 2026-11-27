@@ -158,6 +158,14 @@ export function createSpawnCliTurnRunner(options: {
           void handleApprovalRequest(approvalReq)
           continue
         }
+        // result 行 = 引擎回合出口（结算仍以 close/exit code 为权威——
+        // e429130 预注册形不变）。此刻起 stdin 零用途：end() 释放管道。
+        // 根因定谳（2026-11-27 隔离复现 ctl2）：三 pipe 形下 host 若永持
+        // stdin，引擎 stdin 句柄持住其事件循环 → result 发出后引擎不退、
+        // close 永不 fire、回合悬挂（r-20261122 悬挂同形第二犯）；end()
+        // 后引擎 ~7s 自然退 code=0，stdio 'ignore' 形同。0.1.128 时代
+        // stdin='ignore' 无此面。
+        if (streamJsonResult(line)) child.stdin?.end()
         const text = streamJsonTextDelta(line)
         if (text !== null) deps.emitDelta(text)
       }
@@ -184,11 +192,23 @@ export function createSpawnCliTurnRunner(options: {
 }
 
 /**
- * stream-json 单行 → assistant text 增量（无增量则 null）。
- * 形：{type:'assistant', message:{content:[{type:'text',text:'…'}]}}。
- * 结构化协议边界注记（合同 §9）：text 块按块发射；其余类型（tool_use 等）
- * B1 不投影。
+ * stream-json 单行 → 回合出口判定（type === 'result'）。用途 = stdin 释放
+ * 时点（result 后 stdin 零用途；end() 让引擎自然退出——见 pump 内注记）。
+ * 结算权威不变（close/exit code），本判定不参与终态决定。
  */
+export function streamJsonResult(line: string): boolean {
+  const trimmed = line.trim()
+  if (trimmed.length === 0) return false
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(trimmed)
+  } catch {
+    return false
+  }
+  if (typeof parsed !== 'object' || parsed === null) return false
+  return (parsed as Record<string, unknown>).type === 'result'
+}
+
 /** 审批通道 wire 请求形（引擎 C1-c：approval_request 五字段的 runner 消费子集）。 */
 export interface StreamJsonApprovalRequest {
   approvalId: string
