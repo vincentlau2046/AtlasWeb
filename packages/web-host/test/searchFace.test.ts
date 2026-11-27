@@ -12,7 +12,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const HOST = '127.0.0.1'
-const PORT = 8931
 
 async function startServer() {
   const { createHttpHost } = await import('../src/httpHost')
@@ -29,11 +28,19 @@ async function startServer() {
   const sessionHost = createSessionHost({ productId: 'atlascode', scopes: [{ scopeId: 'main', storageDir: dir }] })
   const auth = createLaunchAuth({ secret: 'search-test-secret-32-bytes!!!!!!!' })
   const server = createHttpHost({ sessionHost, auth })
-  await new Promise<void>(resolve => server.listen(PORT, HOST, resolve))
+  // #405：ephemeral 端口（listen(0)）——固定端口跨 session/并行 runner
+  // EADDRINUSE 碰撞面（f4 环境注记）；端口由内核分配后回读。
+  const port = await new Promise<number>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(0, HOST, () => {
+      const addr = server.address()
+      resolve(typeof addr === 'object' && addr !== null ? addr.port : 0)
+    })
+  })
   await sessionHost.start()
   const cookie = auth.redeemLaunchToken(auth.issueLaunchToken())!
   return {
-    base: `http://${HOST}:${PORT}`, cookie, sessionHost,
+    base: `http://${HOST}:${port}`, port, cookie, sessionHost,
     async stop() {
       await new Promise<void>(resolve => server.close(() => resolve()))
       await sessionHost.close()
@@ -46,7 +53,7 @@ describe('格 D searchSessions face (S0-R4 @0.1.119)', () => {
   test('search route returns real projection hits; query bounds fail-closed; auth/scope guards', async () => {
     const ctx = await startServer()
     try {
-      const headers = { host: `${HOST}:${PORT}`, cookie: `atlas_session=${ctx.cookie}` }
+      const headers = { host: `${HOST}:${ctx.port}`, cookie: `atlas_session=${ctx.cookie}` }
       // 无 cookie → 401
       const noAuth = await fetch(`${ctx.base}/sessions/search?q=fox`, { headers: { host: headers.host } })
       expect(noAuth.status).toBe(401)
