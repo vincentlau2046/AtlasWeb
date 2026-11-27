@@ -16,11 +16,12 @@
 
 - 一次性插桩跑（不入仓或随修形同 revert）：helper 循环逐轮 dump——`transcript.scrollTop` / `m180` boundingClientRect vs transcript viewport / virtualizer 窗口界（`getVirtualItems()` 首尾 index）/ StatusStrip·DeliverablesCard 实占高度。
 - **判据**：探针输出须直证或证伪「overscan 行挂载即退出」机制 + 给出几何变更归因提交（五候选内逐件 diff 对表）。探针证据随修形 commit 附注登记。
+- **R1 三行直证（审计必改 1 折入，与 §8 注记 1 互补）**：① **循环退出侧别**（m180 挂载时处容器上带/下带）② **步长 residue**（scrollTop mod 2000 vs 容器高 H / overscan 像素）③ **overscan 实测像素**（REPLAY_OVERSCAN=10 × 实测行高）——把「相位跳窗」假说直证/证伪；另记**退出方式**（条件退出 vs 30 轮耗尽，§8 注记 1）+ **transcript 容器 rect vs window viewportSize 对表**（两谓词不一致面直证化，审计建议 2①；断言零改动禁不变）。
 - 产物 = 归因结论一行入修形 commit message（单提交归因补齐——W1+E1 §2a-3 登记的候定谳面就此销）。
 
 ## §2 切片 2：helper 根修（Main，test-side only）
 
-- **修形**：循环退出条件改为**真入视口判定**（`m180` boundingClientRect 与 transcript 滚动容器视口相交 ≥1px，轮内自算）＋保留小步 wheel（-2000px/120ms）＋有界轮数（30 维持，不放大）；腿 7 内联副本同修；`readToMidAndSettle` 轮后 :236 settle 800ms 维持。
+- **修形（审计必改 1 修形——二选一，Main 实现自选）**：单判据替换**不构成收敛保证**（overscan 挂载带 y∈[-640,-h] 处下一步 -2000px 必越至 y≈[1360,2000] 下缘外；成功窗宽 ≈(H+h)/2000 ≈30-40%，B 系 chrome 改 H 后相位落 skip 带即 ×3 确定性红——**只换判据可能把旧确定性红换新确定性红**）。两形：**① mounted 后按 bbox 双向校正**（m180 处容器底之下 → 反向 wheel 回补 gap；处上 → 继续上滚）直至容器相交；**② 粗→匀两相**（unmounted 时 -2000px 粗滚；mounted 后收尾小步 ≤400px 消除跳窗，轮数预算 30 内分配）。两形共同：退出判据 = 真入视口判定（`m180` boundingClientRect 与 transcript 滚动容器相交 ≥1px，轮内自算）；腿 7 内联副本同修；`readToMidAndSettle` 轮后 :236 settle 800ms 维持；**循环退出谓词 = 容器相交（滚动机制正确参照），最终门 = 断言 toBeInViewport 零改动（§8 注记 4：两谓词非同一，不一致时断言如实红、§3 两分兜底，禁为对齐断言改断言）**。
 - **红线（防伪修）**：① 四腿产品面断言**逐字零改动**（toBeInViewport/toHaveCount/toHaveURL 等全数保留——机器可判：修形 diff 断言行零增删改）；② 禁改 ratio/timeout 放水；③ 禁改用 `scrollIntoViewIfNeeded`（改变受测滚动机理）；④ 锚 effect（ConversationView :166/:180/:207）零触碰除非 §3 探针实证产品缺陷。
 - 单测腿：无（pw helper 无 unit 面；覆盖 = 四腿自身 ×3）。
 
@@ -48,11 +49,11 @@
 ## §6 判据格（预注册，全绿才收口）
 
 1. 四前红腿 ×3 GREEN（腿 7/9/10/11）；
-2. candidate 13 + execution 8 = 21/21 ×3 零回退；
+2. **全目录 22/22 ×3 零回退**（`bunx playwright test --grep-invert '\[对照\]'` 实数 = candidate 13 + execution 8 + B3 自腿 deliverables 1 = 22，b12 防跑漏形全目录口径——审计必改 2a 采认）；
 3. 对照 3/3 绿（旧制品专跑形，切片 4）；
-4. 全仓 `bun test` canon ≥546 pass / 0 fail（tests/ 纯面口径）+ typecheck 0；
-5. **断言零改动审计**：修形 diff 断言行零增删改（机器可判）+ R1 归因结论在 commit 附注；
-6. D1 冻结副本判前判后 sha MATCH（判定轮）。
+4. 全仓 `bun test` canon ≥546 pass / 0 fail（tests/ 纯面口径）+ **`bunx tsc --noEmit -p tsconfig.json` = 0**（命令形钉死——审计必改 2b 采认；开工前预验基线须 = 0，非 0 则撤除该格或登记基线差，防收口时判据不可执行）；
+5. **断言零改动 + 参数钉审计**：修形 diff 断言行零增删改（机器可判）+ **修形参数面逐项钉**（粗相 -2000px/120ms、轮数上限 30、settle 800ms、禁 scrollIntoViewIfNeeded、timeout/ratio 零改动；两相形落地则匀相参数同钉——审计建议 2② 采认）+ R1 归因结论在 commit 附注；
+6. D1 冻结副本判前判后 sha MATCH（判定轮）+ **锚预注册 = a4063946…7309b / 57027aa3…dae8b**（本波 test-side-only 零打包面 → 判前重建核验应与终验锚字节恒等；**显性触发条件 = 若 #277 UI 波或任何 web-code 落码在判定前合并 → 打包面变 → 按锚预注册纪律重出锚再判**〔§7-7 勘正先例同形，禁旧锚混判〕；§3 分支②产品修形触发同此——审计必改 3 采认）。
 
 ## §7 信号面
 
@@ -91,3 +92,14 @@
 **§6 判据格核**：六格内部一致（格 1 含腿 7 内联；21/21 含 candidate 13；格 5 断言零改动机器可判；D1 照 §7-7③）。无缺口。**§5 自决 1-5 核**：全部成立，与判词侧定性及既采认程序纪律无冲突。
 
 > 审视链：工单全文读毕 → 五锚活码实勘（git 锚定 f56ec92 时点）→ 四点裁定 → 注记 4 条 → 本节。双门状态：判词侧审视 PASS（本节）；候 Atlas-reveiw 审计——双 PASS 后 f4 发双信号（Main 落码 + e2e 验收）。
+
+## §9 f4 修形折入（Atlas-reveiw 审计必改 3 + 建议 2，2026-11-27）
+
+- **审计结果**（@a9f3d85 时点，含 §8 判词侧审视折入版）：**方向 PASS；活码核对全 MATCH（判词侧五锚同值互证）+ 必改 3 + 建议 2** → 本节文本级修形全数折入：
+  - **必改 1（实质）**：§2 修形改二选一形（mounted 后 bbox 双向校正 ∥ 粗→匀两相），并落审计机理直证（overscan 挂载带 + -2000px 步进相位跳窗 → 单判据替换可能旧红换新红）；§1 R1 增三行直证（退出侧别/步长 residue/overscan 实测像素）+ 退出方式 + 两谓词 rect 对表。
+  - **必改 2**：§6-2 钉 22/22 全目录口径（B3 自腿 deliverables 1 入集）；§6-4 钉 `bunx tsc --noEmit -p tsconfig.json` + 开工前基线预验 = 0。
+  - **必改 3**：§6-6 锚预注册 a4063946/57027aa3 + 合并触发重出锚显性条款（§3 分支②同此）。
+  - **建议 2①②**：两谓词 rect 对表入 R1；§6-5 参数面逐项钉（含两相形参数）。
+- **§8 注记 4 条全采认**（判词侧精化与审计建议合轨无冲突）；红线④保护域行引按注记 3 精化 = ConversationView :156-190 + :196-207。
+- a9f3d85（判词侧 §8）随本修形 commit 一并推 origin（审计提醒兑现）。
+- 双门状态：判词侧审视 PASS（§8）+ 审计方向 PASS（修形后候点核）→ **点核 PASS 即双门齐，f4 发双信号**。
