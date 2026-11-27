@@ -13,7 +13,10 @@
  *  - signal → kill 子进程（引擎真中止）→ 'cancelled'；exit 0 →
  *    'completed'；非 0 → 'failed'。spawn seam 注入供单测。
  *  - B2 审批链路必须经 kernel（禁复用 CLI control-request 审批面）——
- *    B1 切片 runner 不消费 requestApproval（kernel 面保留；B2 接线）。
+ *    W1 接线（0.1.129 呈批书 §2，批复 @af5684e9）：runner 消费
+ *    approval_request → deps.requestApproval（kernel 权威）→ 四值决策
+ *    映射回写 stdin 决策行（voidedByCancel 零写入）；形 A 纪律 = host
+ *    approvals 仅证据落档，decide 经 kernel，零 host 直通旁路。
  *  - actorId() 真源 = host 已认证连接身份注入（**必填 fail-closed**：
  *    缺失/空值构造即硬错，不回落 ambient——F2 裁定，'atlas-local-ambient'
  *    仅 CLI 车道零参默认，web 车道不可见）。
@@ -51,8 +54,8 @@ export type {
 export type SpawnSeam = (
   command: string,
   args: readonly string[],
-  options: { cwd: string; signal?: AbortSignal },
-) => Pick<ChildProcess, 'stdout' | 'stderr' | 'on'>
+  options: { cwd: string; signal?: AbortSignal; stdio?: ['pipe', 'pipe', 'pipe'] },
+) => Pick<ChildProcess, 'stdout' | 'stderr' | 'stdin' | 'on'>
 
 export interface ExecutionUpstream {
   /** 合同 §2 六命令一一对应（capability.probe 由 routes 域承载，不经 kernel）。 */
@@ -99,14 +102,50 @@ export function createSpawnCliTurnRunner(options: {
     }
     const child = doSpawn(
       cliPath,
-      ['-p', deps.text, '--resume', deps.bind.sessionId, '--output-format', 'stream-json', '--verbose'],
-      // stdin 必闭（'ignore'）：-p 回合不闭 stdin → 真 CLI 挂起等输入，close
-      // 永不 firing → kernel 不 settle（r-20261122-atlasweb-b2-gate 单红钉格
-      // 定谳：stdin:ignore / child.stdin.end() 即愈）。
-      { cwd: dir, signal: deps.signal, stdio: ['ignore', 'pipe', 'pipe'] },
+      // W1-a（0.1.129 呈批书 §2，批复 @af5684e9）：追加 --approval-channel=
+      // stream-json —— ask 权限决断改走结构化 stdout 事件 + stdin 决策行
+      // （C1 wire 形；禁复用 SDK control_request 面）。
+      [
+        '-p',
+        deps.text,
+        '--resume',
+        deps.bind.sessionId,
+        '--output-format',
+        'stream-json',
+        '--verbose',
+        '--approval-channel',
+        'stream-json',
+      ],
+      // W1-a：stdio 改三 pipe——stdin 'pipe' 供审批决策行回写。r-20261122
+      // 悬挂定谳的兼容面（防悬挂）：引擎侧 stdin 启动 probe 有 3s peek 超时
+      // 支（dispatch.ts getInputPrompt），零字节 pipe 不闭不悬挂；且决策写入
+      // 仅在响应已发出的 approval_request 时发生（C1-d pending-gated 对偶，
+      // 无审批回合 stdin 零字节）。
+      { cwd: dir, signal: deps.signal, stdio: ['pipe', 'pipe', 'pipe'] },
     )
+    // 子进程先死 + 迟到决策行写 → EPIPE 异步事件（uncaught 风险）；消费丢弃
+    // ——kernel 已 settle（终态恰一个），决策行丢失方向 = 引擎收不到即
+    // fail-closed deny（C1-e），无害。
+    child.stdin?.on('error', () => {})
     // stdout 增量 → emitDelta（stream-json 按行解析 assistant text 块；
-    // 非法行跳过——CLI stderr 混流不腐蚀回合记录）。
+    // 非法行跳过——CLI stderr 混流不腐蚀回合记录）；approval_request 行
+    // → kernel 审批链（W1-b：decide 经 kernel requestApproval 权威，runner
+    // 只做 wire ↔ kernel 双向翻译，零 host 直通旁路）。
+    const handleApprovalRequest = async (req: StreamJsonApprovalRequest): Promise<void> => {
+      const decision = await deps.requestApproval({
+        toolName: req.toolName,
+        actionDigest: req.inputDigest,
+      })
+      // voidedByCancel（回合取消）不走 wire（C1-e）：零写入——引擎 abort→kill
+      // 收口，EOF 即 fail-closed deny。
+      if (decision === 'voidedByCancel') return
+      const decisionLine = JSON.stringify({
+        type: 'approval_response',
+        approval_id: req.approvalId,
+        decision,
+      })
+      child.stdin?.write(`${decisionLine}\n`)
+    }
     let lineBuf = ''
     child.stdout?.on('data', (chunk: Buffer | string) => {
       lineBuf += typeof chunk === 'string' ? chunk : chunk.toString('utf8')
@@ -114,6 +153,11 @@ export function createSpawnCliTurnRunner(options: {
       while ((idx = lineBuf.indexOf('\n')) >= 0) {
         const line = lineBuf.slice(0, idx)
         lineBuf = lineBuf.slice(idx + 1)
+        const approvalReq = streamJsonApprovalRequest(line)
+        if (approvalReq !== null) {
+          void handleApprovalRequest(approvalReq)
+          continue
+        }
         const text = streamJsonTextDelta(line)
         if (text !== null) deps.emitDelta(text)
       }
@@ -136,6 +180,49 @@ export function createSpawnCliTurnRunner(options: {
     deps.signal.removeEventListener('abort', onAbort)
     if (deps.signal.aborted) return 'cancelled'
     return exitCode === 0 ? 'completed' : 'failed'
+  }
+}
+
+/**
+ * stream-json 单行 → assistant text 增量（无增量则 null）。
+ * 形：{type:'assistant', message:{content:[{type:'text',text:'…'}]}}。
+ * 结构化协议边界注记（合同 §9）：text 块按块发射；其余类型（tool_use 等）
+ * B1 不投影。
+ */
+/** 审批通道 wire 请求形（引擎 C1-c：approval_request 五字段的 runner 消费子集）。 */
+export interface StreamJsonApprovalRequest {
+  approvalId: string
+  toolName: string
+  inputDigest: Record<string, unknown>
+}
+
+/**
+ * stream-json 单行 → approval_request（非审批请求行则 null）。
+ * 形（引擎 C1-c 预注册）：{type:'approval_request', approval_id, tool_name,
+ * input_digest, session_id}。防御解析：approval_id 缺失/空 → null（无法回写
+ * 决策的请求行不触发 kernel 审批——kernel 权威，fail-closed）。
+ */
+export function streamJsonApprovalRequest(line: string): StreamJsonApprovalRequest | null {
+  const trimmed = line.trim()
+  if (trimmed.length === 0) return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(trimmed)
+  } catch {
+    return null
+  }
+  if (typeof parsed !== 'object' || parsed === null) return null
+  const rec = parsed as Record<string, unknown>
+  if (rec.type !== 'approval_request') return null
+  if (typeof rec.approval_id !== 'string' || rec.approval_id.length === 0) return null
+  const inputDigest =
+    typeof rec.input_digest === 'object' && rec.input_digest !== null && !Array.isArray(rec.input_digest)
+      ? (rec.input_digest as Record<string, unknown>)
+      : {}
+  return {
+    approvalId: rec.approval_id,
+    toolName: typeof rec.tool_name === 'string' ? rec.tool_name : 'unknown',
+    inputDigest,
   }
 }
 

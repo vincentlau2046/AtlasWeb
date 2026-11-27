@@ -3,7 +3,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createExecutionUpstream, createSpawnCliTurnRunner, streamJsonTextDelta } from '../src/execution/upstream'
+import { createExecutionUpstream, createSpawnCliTurnRunner, streamJsonApprovalRequest, streamJsonTextDelta } from '../src/execution/upstream'
 import type { SpawnSeam } from '../src/execution/upstream'
 import { createWorkspaceAuthorizer } from '../src/execution/workspaceAuth'
 import type { WebExecutionCommand } from '@atlaswork/atlascode/web-session-runtime/execution'
@@ -212,6 +212,178 @@ describe('createSpawnCliTurnRunner · e429130 真体形（spawn seam 注入）',
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe('W1 审批通道接线（0.1.129 呈批书 §2 形 A，批复 @af5684e9）', () => {
+  const line = (obj: unknown): string => `${JSON.stringify(obj)}\n`
+  const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0))
+  const defer = <T,>(): { promise: Promise<T>; resolve: (v: T) => void } => {
+    let resolve!: (v: T) => void
+    const promise = new Promise<T>((r) => { resolve = r })
+    return { promise, resolve }
+  }
+
+  const approvalReq = (approvalId = 'a-1'): string =>
+    line({
+      type: 'approval_request',
+      approval_id: approvalId,
+      tool_name: 'Write',
+      input_digest: { file_path: '/tmp/ws1/out.txt' },
+      session_id: 'sess1',
+    })
+
+  /** 带 stdin 写入收集的 fake（W1 决策回写面）。 */
+  function fakeApprovalSpawn(): {
+    seam: SpawnSeam
+    emit: (l: string) => void
+    close: (code: number | null) => void
+    stdinWrites: string[]
+    args: () => readonly string[]
+    opts: () => Record<string, unknown> | undefined
+  } {
+    const stdoutListeners: Array<(c: Buffer) => void> = []
+    const closeListeners: Array<(code: number | null) => void> = []
+    const stdinWrites: string[] = []
+    let capturedArgs: readonly string[] = []
+    let capturedOpts: Record<string, unknown> | undefined
+    const child = {
+      stdout: { on: (_: string, l: (c: Buffer) => void) => { stdoutListeners.push(l) } },
+      stderr: { on: () => {} },
+      stdin: {
+        write: (s: string) => { stdinWrites.push(s); return true },
+        on: () => {},
+      },
+      on: (ev: string, l: (code: number | null) => void) => { if (ev === 'close') closeListeners.push(l) },
+      kill: () => {},
+    }
+    const seam: SpawnSeam = (_cmd, args, opts) => {
+      capturedArgs = args
+      capturedOpts = opts as Record<string, unknown>
+      return child as never
+    }
+    return {
+      seam,
+      emit: (l) => stdoutListeners.forEach((x) => x(Buffer.from(l))),
+      close: (code) => closeListeners.forEach((x) => x(code)),
+      stdinWrites,
+      args: () => capturedArgs,
+      opts: () => capturedOpts,
+    }
+  }
+
+  const runArgs = {
+    bind: { workspaceId: 'ws1', sessionId: 'sess1', turnId: 't' },
+    text: 'x',
+    signal: new AbortController().signal,
+    emitDelta: () => {},
+  }
+
+  test('① approval_request → requestApproval 透传（toolName/actionDigest）+ approved 决策行回写 stdin', async () => {
+    const f = fakeApprovalSpawn()
+    const runner = createSpawnCliTurnRunner({ workspaceDir: () => '/tmp/ws1', spawn: f.seam })
+    const calls: Array<{ toolName?: string; actionDigest?: Record<string, unknown> }> = []
+    const gate = defer<void>()
+    const p = runner({
+      ...runArgs,
+      requestApproval: async (req) => { calls.push(req ?? {}); await gate.promise; return 'approved' },
+    })
+    f.emit(approvalReq())
+    await tick()
+    await tick()
+    expect(calls.length).toBe(1)
+    expect(calls[0]).toEqual({ toolName: 'Write', actionDigest: { file_path: '/tmp/ws1/out.txt' } })
+    // W1-a 预注册形：spawn args 追加审批通道 flag + stdio 三 pipe（仅本 lane）。
+    expect(f.args()).toContain('--approval-channel')
+    expect(f.args()).toContain('stream-json')
+    expect(f.opts()?.stdio).toEqual(['pipe', 'pipe', 'pipe'])
+    gate.resolve()
+    await tick()
+    expect(f.stdinWrites).toEqual([
+      `${JSON.stringify({ type: 'approval_response', approval_id: 'a-1', decision: 'approved' })}\n`,
+    ])
+    f.emit(line({ type: 'assistant', message: { content: [{ type: 'text', text: 'done' }] } }))
+    f.close(0)
+    expect(await p).toBe('completed')
+  })
+
+  test('② denied → deny 决策行回写 + 回合继续至 completed', async () => {
+    const f = fakeApprovalSpawn()
+    const runner = createSpawnCliTurnRunner({ workspaceDir: () => '/tmp/ws1', spawn: f.seam })
+    const deltas: string[] = []
+    const p = runner({
+      ...runArgs,
+      emitDelta: (t) => deltas.push(t),
+      requestApproval: async () => 'denied',
+    })
+    f.emit(approvalReq())
+    await tick()
+    await tick()
+    expect(f.stdinWrites).toEqual([
+      `${JSON.stringify({ type: 'approval_response', approval_id: 'a-1', decision: 'denied' })}\n`,
+    ])
+    // deny 后引擎以拒答文本继续收口（回合不被审批打断）。
+    f.emit(line({ type: 'assistant', message: { content: [{ type: 'text', text: 'denied by host' }] } }))
+    f.close(0)
+    expect(await p).toBe('completed')
+    expect(deltas).toEqual(['denied by host'])
+  })
+
+  test('③ expired → expired 决策行回写', async () => {
+    const f = fakeApprovalSpawn()
+    const runner = createSpawnCliTurnRunner({ workspaceDir: () => '/tmp/ws1', spawn: f.seam })
+    const p = runner({ ...runArgs, requestApproval: async () => 'expired' })
+    f.emit(approvalReq())
+    await tick()
+    await tick()
+    expect(f.stdinWrites).toEqual([
+      `${JSON.stringify({ type: 'approval_response', approval_id: 'a-1', decision: 'expired' })}\n`,
+    ])
+    f.close(0)
+    expect(await p).toBe('completed')
+  })
+
+  test('④ voidedByCancel → 零写入（C1-e：取消不走 wire，abort→kill 收口）', async () => {
+    const f = fakeApprovalSpawn()
+    const runner = createSpawnCliTurnRunner({ workspaceDir: () => '/tmp/ws1', spawn: f.seam })
+    const p = runner({ ...runArgs, requestApproval: async () => 'voidedByCancel' })
+    f.emit(approvalReq())
+    await tick()
+    await tick()
+    expect(f.stdinWrites).toEqual([])
+    f.close(0)
+    expect(await p).toBe('completed')
+  })
+
+  test('⑤ 无审批回合 stdin 零字节 + 回合 settle（completed）+ 子进程正常退出', async () => {
+    const f = fakeApprovalSpawn()
+    const runner = createSpawnCliTurnRunner({ workspaceDir: () => '/tmp/ws1', spawn: f.seam })
+    const deltas: string[] = []
+    // 审批面零触碰即硬错（无审批回合 kernel 面不可达——C1-d pending-gated 对偶）。
+    const p = runner({
+      ...runArgs,
+      emitDelta: (t) => deltas.push(t),
+      requestApproval: async () => { throw new Error('requestApproval must not be called on approval-free turn') },
+    })
+    f.emit(line({ type: 'system', subtype: 'init' }))
+    f.emit(line({ type: 'assistant', message: { content: [{ type: 'text', text: 'ok' }] } }))
+    f.close(0)
+    expect(await p).toBe('completed')
+    expect(deltas).toEqual(['ok'])
+    expect(f.stdinWrites).toEqual([])
+  })
+
+  test('approval_request 行解析：合法形/非 approval_request/缺 approval_id → null', () => {
+    const good = streamJsonApprovalRequest(approvalReq())
+    expect(good).toEqual({ approvalId: 'a-1', toolName: 'Write', inputDigest: { file_path: '/tmp/ws1/out.txt' } })
+    expect(streamJsonApprovalRequest(line({ type: 'assistant', message: {} }))).toBe(null)
+    expect(streamJsonApprovalRequest(line({ type: 'approval_request' }))).toBe(null)
+    expect(streamJsonApprovalRequest(line({ type: 'approval_request', approval_id: '' }))).toBe(null)
+    expect(streamJsonApprovalRequest('not json')).toBe(null)
+    expect(streamJsonApprovalRequest('')).toBe(null)
+    // input_digest 缺省/非对象 → 空对象（防御形）；tool_name 缺省 unknown。
+    expect(streamJsonApprovalRequest(line({ type: 'approval_request', approval_id: 'a-2' })))
+      .toEqual({ approvalId: 'a-2', toolName: 'unknown', inputDigest: {} })
   })
 })
 
