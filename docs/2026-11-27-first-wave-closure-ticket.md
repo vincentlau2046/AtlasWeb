@@ -23,7 +23,7 @@
   - 新增 `packages/web-code/src/views/WorkspaceListPanel.tsx`（列表/选择 UI）；
   - 修改 `apps/atlasweb/src/main.tsx`（executionWorkspace 来源 = 列表选中项；`?workspace=` hint 保留为深链回退形——返工面 b12 预注收敛本文件）；
   - 修改 `packages/web-code/src/index.tsx`（挂载/槽位接线，B1 接线 e5656f7 同域）；
-  - **新增 web-host 只读 discovery 端点**（现无列表路由——活码定谳：workspace 注册面 = 启动参数 `--workspace id=dir` 授权制，launchCli.ts:43/:66-67/:87/:114 grantWorkspace，httpHost 无列表路由）：GET 只读返 workspaceAuth 已授权 `{workspaceId}` 列表，零目录内容/零凭据；落码计划定谳具名路由并回填本行（端点亦属扩格文件件，逐文件登记纪律同）；
+  - **新增 web-host 只读 discovery 端点**（现无列表路由——活码定谳：workspace 注册面 = 启动参数 `--workspace id=dir` 授权制，launchCli.ts:43/:66-67/:87/:114 grantWorkspace，httpHost 无列表路由）：GET 只读返 workspaceAuth 已授权 `{workspaceId}` 列表，零目录内容/零凭据；**路由层安全形（审计复判注记 4 预注册）**：auth fence 后、与 `/sessions` 同层、未认证零泄漏、响应仅 workspaceId 字符串；落码计划定谳具名路由并回填本行（端点亦属扩格文件件，逐文件登记纪律同）；
   - web-connection 增只读取列表方法（若经 HTTP 传输面）。
   - **单测腿（附表 §5 每切片门）**：① 列表选择 → executionBinding 源 = 选中项（`executionBinding.test.ts` 增腿）；② 无选择且无 hint → 零渲染回归形；③ host 端点返值 ≡ 已授权集（fail-closed：未授权零出现）。
   - **纪律复述**：选择 ≠ 授权——授权权威 = 服务端逐命令 workspaceAuth（E1），b12 Issue 3 裁定不改；列表可见性不预授任何提交权。
@@ -70,7 +70,7 @@
 
 ## §6 呈批件：runTurn 审批接线切片产品形——**已裁（用户 2026-11-27 亲裁：形 A + 随波并行）**
 
-> **裁定落档**：采**形 A**（runner 收 requestApproval → 报 host 审批队列，复用 B2 approvals 证据链/E1–E5 冻结判据）；时点 = **随本收尾波并行落地**，总验收前 pw 审批正腿补齐，终验格 8 跑全形。落码归 Main；e2e 两形态执行面均可承接（atlas-user-e2e #276 知会回执），按全形预备。以下呈批原文存档。
+> **裁定落档**：采**形 A**（runner **调 kernel 供给的 requestApproval**——host approvals 仅证据落档、decide 经 kernel，权威路径详见下产品形钉死节）；时点 = **随本收尾波并行落地**，总验收前 pw 审批正腿补齐，终验格 8 跑全形。落码归 Main；e2e 两形态执行面均可承接（atlas-user-e2e #276 知会回执），按全形预备。以下呈批原文存档（初稿「报 host 审批队列」表述已在钉死节校正，引述勿回旧措辞）。
 
 - **缺口**（b12 R2 定谳）：`spawnCliTurnRunner` 不消费 `requestApproval`——kernel/host/客户端审批面已落（B2 单测+UI），runner 侧消费接线不在 B2 范围，pw 审批正腿结构性不可达。
 - **形 A（已裁·产品形钉死，审计必改 3 修形）**：
@@ -84,7 +84,8 @@
 
 ## §7 信号面
 
-1. 本工单 → Atlas-reveiw 审计：**一轮已毕 @e38a9d8（方向采认 + 4 必改）→ 四必改修形 + 用户呈批裁定（形 A + 随波并行）落档 → 送复判**（复判 PASS 即双信号）；
-2. 审计 PASS → 双信号（Main：切片 1 落码 + 候选锁面呈批；e2e：切片 2/4 腿预注册+执行）；
+1. 本工单 → Atlas-reveiw 审计：一轮 @e38a9d8（方向采认 + 4 必改）→ 修形 @42c5251 → **复判 PASS（0 必改）@42c5251**（2026-11-27）；
+2. **复判 4 非阻注记处置（本 commit）**：① §6 摘要句旧措辞校正；② discovery 端点路由层安全形预注册（§1）；③ **预跑例外登记**——Main lane（AtlasCode job 1b9594d7）于复判 PASS 前已起 B3 落码面（草案工单 + 三视图/settings/单测/接线 ~200 行未提交；草案 §0 系附表 §4 基线、缺增量①）：例外登记，**落码以 42c5251 修形版为唯一准绳**，草案随动更新（增量① 发现列表件 + 审批接线切片〔形 A〕补入），已起面对 42c5251 对表、差异面 Main 补齐；④ carrier 分支初核采记——Atlas-reveiw 初扫 0.1.128：审批请求现形 = `control_request`（print.ts:565/:1587，禁复用面）+ mailbox `permission_request`（engine/messaging 域非 stdout 面），**未见独立结构化审批请求事件**→ 定谳大概率走增补支（新 carrier 版本 → L4 用户亲署 → 终验候选重出）；定谳仍以落码计划 §0 首件为准并回填；
+3. **双信号已发**（复判 PASS 后）：Main = 切片 1 + 审批接线（形 A）落码按 42c5251 修形版（正文条件：执行波草案随动更新含增量①）；e2e = 切片 2/4 判据预注册开工，执行候 Main 候选锁面（全形预备）；
 3. §6 呈批件已呈已裁（用户 2026-11-27 亲裁：形 A + 随波并行）——终验格 8 = 全形；
 4. UI 波（§5-1）独立工单另行走审计链，不入本波。
