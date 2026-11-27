@@ -55,3 +55,14 @@ RED→GREEN 判定单（e2e）+ 审计 PASS + 超帽种子实装腿（G7 同族�
 - **审计终判 @1bd3bf6：PASS（0 必改）+ 3 非阻注记**——四专核逐项成立（活码四点复证含同 grep 复跑零命中 / 八格全数有出处无冒格〔格 3 修形 a 判「去冒」〕/ 非目标边界守住 / 时点自决有先例且与收尾波串行无扰）；复判 4 注记处置 @22216c4 同批核真闭环。
 - **3 注记处置（本 commit 折入）**：注记 1 → 格 4 F2 族显性登记；注记 2 → 格 6 补 apps/atlasweb 零 diff；注记 3 → §4 前提锚登记。
 - **双信号**：Main 落码 §3 三件 / e2e 判据 §2 八格+验收件 §6——已发登记，**执行候收尾波收口**（时点自决采认形）；登记面销项注记（§6 末句）采认。
+
+## §8 GREEN 轮裁定（f4，2026-11-27；判定单 `user-e2e/reports/r-20261127-f6page-ui-green.md`）
+
+- **判定单采认：GREEN 轮不通过维持（不冒绿）**——七格绿面（格 2/3/4/6/7 GREEN + 格 5 序面 GREEN + 格 8 绿面：pw 18/22 + viewport 4 红既登记零新增 + bun 561/1skip/0 fail）+ 格 1 单红钉格（半销形）。D1 = 锚 #2 ab8af94a/5c685cfe 判前判后 MATCH。
+- **销面采认（020f3cb 客户端修复 wire 直证）**：超帽分页行进全链（progress face + page1=27/page2=13 + 行进集 union 40/40 noDup）/ F2 显性跨页（error 面 + 4 条零误吞）/ cursorExpired 真构造捕获（截断竞态 → Reload → 重行进 live 30/30 恒序）/ 帽内全路径零回归（RED 基线逐字段恒等）。
+- **格 1 未销面定性（裁定）**：服务端 **follow baseline 投影限**（follow SSE 首帧流内 `{kind:"error",code:"resourceLimit",message:"projection exceeds limit (6004528 bytes)"}` + closed，HTTP 200 SSE 形非 429 形，追加前后确定性同形）= **新暴露 pre-existing 产品缺陷**（web-session-runtime 域，020f3cb §3 三件之外；unpack diff 仅 client bundle → server 字节恒等直证；旧码死于 replay 层从未达 follow，客户端修复揭开既有面）→ 属格 1 预注册判据面（follow 正常接管）→ **修形切片入本波（非另立波）**——另立波则格 1 无限期悬挂，预注册判据面不外移。
+- **切片程序（波内增量节）**：Main 出 follow baseline 根修切片方案（修向候选对表——基线 cursor 化 ∥ 限额策略 ∥ 降级路径——+ 技术裁定 + §0 活码重核）→ Atlasweb-F4 审视 + Atlas-reveiw 审计双门 → 落码。**升级条件：若方案涉 follow 架构语义级重构（超出基线投影策略修复面）→ 呈用户敲定（卷 4 级规则）**。
+- **合流排程（双轨并行，f4 排程权）**：
+  - **轨 A（即时）**：viewport 根修 @9b28206 候件条件已满足（GREEN 判定单已出，无在途 ×3 轮，跨测试文件变更防面解除）→ Main 合 main + push；**test-side-only 零打包面 → 锚 #2 不重出，重建核验字节恒等即直证**（SRI 锚 #2 节补构建源推进登记行）；e2e 根修验收轮即刻（§6 六格 ×3 + 断言零改动审计；canon 名冻结副本 + `--config e2e/playwright.config.ts` 两教训随信号）。根修收口 = 第一波 §7-11 格 1 豁免销项。
+  - **轨 B（并行）**：follow 切片方案双门 → 落码合并 → **锚 #3 重出**（server 字节变）→ 本波 GREEN 复判（e2e v3 腿基座就绪复判成本低；格 8 22/22 应全绿——viewport 四红腿已由轨 A 转绿 + follow 销）→ 本波收口 + F6-PAGE 登记行翻转注记（§6 末句兑现）。
+- **登记面处置**：① 超帽 follow 流内错形适配器终态处理不重连、UI 无从与 replay 429 区分 → **挂账池**（error 呈现区分度，非本波阻面）；② #282 viewport 波判读合流时点 → 本裁定双轨即协调（rootfix 判定锚 = 锚 #2 恒等核验面；本波复判锚 = 锚 #3）。
