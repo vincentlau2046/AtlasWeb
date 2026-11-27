@@ -20,6 +20,10 @@
  *    approvalId decide 被拒（403/404）且零副作用。
  * 5. `execution stream reconnects exactly once` — 断连期完成的回合，cursor
  *    续传重连后各恰好一次（B∪C = 全事件集、交 = ∅、id 全局唯一）。
+ * 6. `discovery list selection submits with wire form identical to hint form`
+ *    — 收尾波工单增量①：无 hint 入口 → 发现列表选择 → 提交 wire 形
+ *    bind.workspaceId = 选中项（≡ hint 形）+ 引擎真跑 + JSONL 落盘证据；
+ *    选择 ≠ 授权（服务端逐命令 E1）。
  *
  * **受阻登记（R2，非静默缺席）**：审批正腿全链（批准后隔离文件实际改变/
  * 拒绝/过期/跨域零改变、双客户端竞态 E4、decide turn-exact 正腿、重连腿的
@@ -218,6 +222,52 @@ test('unauthorized workspace never executes', async ({ page }) => {
     expect(userLineCount(host), 'engine must have zero trace of unauthorized submits').toBe(baseline)
     await expect(page.locator('[data-exec-running]')).toHaveCount(0)
     await expect(page.locator('[data-exec-queued]')).toHaveCount(0)
+  } finally {
+    host.close()
+  }
+})
+
+test('discovery list selection submits with wire form identical to hint form', async ({ page }) => {
+  // 收尾波工单增量① pw 腿：无 hint 入口（仅 ?session）→ 发现列表选择 →
+  // 提交回合 wire 形 ≡ hint 形（bind.workspaceId = 选中项；服务端执行成功 +
+  // JSONL 落盘 = 内核证据）。选择 ≠ 授权：服务端逐命令对表（E1）不变。
+  const host = await launchInstalledBinExecution(installed)
+  try {
+    // wire 形捕获：UI 提交 POST 的 bind.workspaceId（等价性直接断言面）。
+    let submitBindWorkspaceId: string | null = null
+    page.on('request', req => {
+      if (req.url().endsWith('/execution/turn.submit') && req.method() === 'POST') {
+        try {
+          submitBindWorkspaceId = (JSON.parse(req.postData() ?? '{}') as { bind?: { workspaceId?: string } }).bind?.workspaceId ?? null
+        } catch { /* 形外 body 不判 */ }
+      }
+    })
+
+    // 无 hint 入口：discovery 预取（列表非空）→ 执行通道挂载，binding 为空
+    //（零 hint 零选择）→ 列表在场、composer 零渲染（fail-closed 红线形）。
+    await page.goto(host.redeemUrl)
+    await page.goto(`${host.baseUrl}/?session=short-0001`)
+    const list = page.locator('[data-workspace-list]')
+    await expect(list).toBeVisible({ timeout: 20_000 })
+    const option = list.locator(`[data-workspace-option="${host.workspaceId}"]`)
+    await expect(option).toBeVisible()
+    await expect(option).not.toHaveAttribute('data-workspace-selected')
+    await expect(page.locator('[data-exec-composer]')).toHaveCount(0)
+
+    // 列表选择 → 选中标记 + attach 换绑 → composer 在场（probe 过 = 授权对
+    // 表通过——服务端仍逐命令裁决，列表只披露可见性）。
+    await option.click()
+    await expect(option).toHaveAttribute('data-workspace-selected', host.workspaceId)
+    await expect(page.locator('[data-exec-composer]')).toBeVisible({ timeout: 20_000 })
+
+    const baseline = userLineCount(host)
+    await page.locator('[data-exec-input]').fill(PONG_PROMPT)
+    await page.locator('[data-exec-submit]').click()
+    await expect(page.locator('[data-exec-running]')).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator('[data-transcript]')).toContainText('PONG', { timeout: 60_000 })
+    await expect(page.locator('[data-exec-queue]')).toHaveCount(0, { timeout: 60_000 })
+    expect(userLineCount(host), 'engine must execute the selected-workspace turn').toBe(baseline + 1)
+    expect(submitBindWorkspaceId, 'list-selection wire form must bind the selected workspaceId (≡ hint form)').toBe(host.workspaceId)
   } finally {
     host.close()
   }
