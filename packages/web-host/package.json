@@ -5,6 +5,6 @@
   "type": "module",
   "exports": { ".": "./src/index.ts" },
   "dependencies": {
-    "@atlaswork/atlascode": "0.1.128"
+    "@atlaswork/atlascode": "0.1.129"
   }
 }

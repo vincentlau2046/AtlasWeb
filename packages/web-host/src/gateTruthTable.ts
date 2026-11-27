@@ -91,19 +91,20 @@ interface PairingRollbackAttestation {
 
 const EXPECTED = {
   kind: 'pairing-rollback-attestation',
-  upgradeVersion: '0.1.128',
-  // 0.1.128 = F6-PAGE S1 载体 replay 内容分页公开接口波（wire 加性
-  // pageToken/pageSize/hasMore/nextPageToken 键在场语义 + 装窗读路径 +
-  // replay skeleton subtype+snipMetadata 保留）：runtime 101,550B
-  // 85e9b293… + execution 291,452B 5c8c095e…（双 bundle 变值，S1 修形①②
-  // 归因闭合——SRI docs/sri/v0.1.128.md）；cli.js 锚 18,239,436B
-  // 45259d7d…（0.1.127=18,239,284B b4dfd8a4…，+152B = webSessionV0 分页
-  // 键加性 + engine/session 共享 chunk 编译入 cli bundle——SRI 注记②）。
-  // downgrade 锚 = 0.1.127 cli.js（真实降级腿实测 @2026-11-26 配对链，
-  // registry 直下三腿逐字节）。
-  upgradeSha256Prefix: '45259d7d0d1e1e2b',
-  downgradeVersion: '0.1.127',
-  downgradeSha256Prefix: 'b4dfd8a415687936',
+  upgradeVersion: '0.1.129',
+  // 0.1.129 = 审批接线切片 carrier 增补（C1 1b6bccee 审批通道 + C2 8e4da6ed
+  // kernel 七字段载荷 + release 9cb7fb5f；双 org published round-trip 双
+  // MATCH——SRI docs/sri/v0.1.129.md @AtlasCode 651a9cba）：runtime
+  // 101,550B 85e9b293… **恒等**（C2 仅触 executionKernel、kernel 只入
+  // execution subpath bundle，runtime 零触碰按构造恒等——预注册「三值全变」
+  // 偏离一格按实况报）+ execution 291,765B 921d0ab7…（C2 扩形）；
+  // cli.js 锚 18,244,289B 62bbc6cf…（C1 审批通道域入 cli bundle，
+  // +4,853B vs 0.1.128 18,239,436B 45259d7d…）。
+  // downgrade 锚 = 0.1.128 cli.js（真实降级腿实测 @2026-11-26 配对链，
+  // registry 直下三腿逐字节；在案锚逐字）。
+  upgradeSha256Prefix: '62bbc6cfce86cc59',
+  downgradeVersion: '0.1.128',
+  downgradeSha256Prefix: '45259d7d0d1e1e2b',
 } as const
 
 function isHex(s: string, len: number): boolean {
