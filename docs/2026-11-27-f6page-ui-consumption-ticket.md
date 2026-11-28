@@ -73,3 +73,13 @@ RED→GREEN 判定单（e2e）+ 审计 PASS + 超帽种子实装腿（G7 同族�
 - **轨 B 修订（域更正后果）**：follow baseline 根修切片 = **AtlasCode 域切片**——Main 出 AtlasCode 侧切片方案（follow baseline 分页/增量形 + limits 帽策略候选对表 + §0 活码重核）→ 双门（Atlasweb-F4 审视 + Atlas-reveiw 审计）→ AtlasCode 落码 → **carrier 候 0.1.130 走段 L 形发布链：L4 用户亲署候件（0.1.129 预授权不外溢新版本号，届时呈请）** → AtlasWeb pin bump + 确定性重建 → **锚 #3 重出**（bundle 字节变）→ GREEN 复判（e2e v3 腿基座）→ 本波收口 + F6-PAGE 登记行翻转注记。
 - **并池记账采认（判词侧建议）**：fail-closed 张力面家族并池——① 超帽 follow HTTP 200 流内错形（适配器终态处理不重连，UI 无从与 replay 429 区分）② `--workspace` 目录缺席静默接受——同族记账，加固裁量并池处理。
 - 轨 A 不变：viewport 根修 @9b28206 即刻合并（test-side-only → 锚 #2 不重出，重建核验字节恒等直证）→ e2e 根修验收轮即刻。
+
+## §9 收口裁定（f4，2026-11-28；复判判定单 `user-e2e/reports/r-20261128-f6page-green-rejudge.md` + 判词侧 Atlasweb-F4 独立抽核五点采认双源到件）
+
+- **复判 PASS 采认（双源）**：六格全绿（格 1 根修销面成立：g1 errCount=0/status=live 决定性新面 vs 锚 #2 同腿 follow SSE 首帧 resourceLimit+closed；格 6 = 66 行 bookkeeping-only，web-connection/apps 零 diff）+ viewport 合并判全绿（格 8 = 22/22 口径 R1/R2 双轮直接满足 + R3 单红环境形定谳：同制品三过 + 单红复跑 PASS 27.5s，网关延迟 queue-drain 形）+ 对照 3/3 + bun canon 561/1/0 逐值恒等。判词侧裁定「#277 收口成立」同日到件。
+- **锚 #3 全链立（f4 实勘 + e2e 独立重建双链同果）**：双 org tgz `044e4b2f…`/`fd95114a…` 字节级 MATCH（282,510/282,514B）；D1 双查 MATCH；carrier 四方对表（node_modules 三值 ↔ staging manifest ↔ SRI v0.1.130 @AtlasCode 1c590aef ↔ f4 申报）；**Δ24B unpack 定性 = 恰根修三常量（DEFAULT_MAX_FOLLOW_PROJECTION_BYTES=16M 新增 / pending 8→16 / ledger 16→32）+ A1 fork 行，client dist 逐字节恒等——载体内根修直证**。
+- **#277 全链闭环**：UI 消费波 RED→GREEN（020f3cb 客户端销面）→ 格 1 半销定性（§8）→ 域勘正（§8-1）→ 轨 B 双门（呈批书 @92bc4445）→ 落码 8d32182a → gate PASS（r-20261127-gate-0130）→ **0.1.130 段 L 发布**（L4 = 用户 2026-11-28 带状亲署「授权接下来5个版本的发布」；双组织 latest + round-trip 双 MATCH，tag v0.1.130@70492cb0）→ AtlasWeb pin bump 5608cb3 → 锚 #3 重出（f4 实勘）→ 复判 PASS → 本节收口。**本波工单 §0–§9 终态闭环。**
+- **F6-PAGE 登记行翻转注记兑现**（§6 末句）：F6-PAGE UI 消费波登记未销面就此销。
+- **worktree 清理（收口机械件，f4 执行）**：`worktrees/follow-baseline-rootfix`（f8ee0b89，wt 零脏）+ 分支 `wt/follow-baseline-rootfix` 已移除——ancestry 非合并（cherry 形，8d32182a 重落 master 同先例 9b28206→610ecc9）以内容恒等直证替代：`git diff f8ee0b89 8d32182a -- src/ tests/` = **0 行**；`git worktree list` 复原仅余主检出。
+- **挂账池维持**（本波产出 + 既有，未排程）：① follow 200 流内错形 UI 区分度 ② `--workspace` 静默接受加固（与①并池，fail-closed 家族）③ tsc 清零（2072 件）④ ledger 行为修（issue 前置拒绝 oversized payload）⑤ onActiveEvict 悬空接线 ⑥ g1 `toHaveCount` RED-face artifact 第三例（判别件用 scrollUnion 权威口径——e2e 登记面）。
+- **登记面（不阻判）**：R3 单红环境形定谳（e2e §2）；carrier 核 build-time 链口径（registry round-trip = Main 申报 + f4 SRI 独立 round-trip 双 MATCH 在档，e2e npm pack 网络超时未独立复跑该腿）。
