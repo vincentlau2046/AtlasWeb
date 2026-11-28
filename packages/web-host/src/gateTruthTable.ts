@@ -91,20 +91,21 @@ interface PairingRollbackAttestation {
 
 const EXPECTED = {
   kind: 'pairing-rollback-attestation',
-  upgradeVersion: '0.1.129',
-  // 0.1.129 = 审批接线切片 carrier 增补（C1 1b6bccee 审批通道 + C2 8e4da6ed
-  // kernel 七字段载荷 + release 9cb7fb5f；双 org published round-trip 双
-  // MATCH——SRI docs/sri/v0.1.129.md @AtlasCode 651a9cba）：runtime
-  // 101,550B 85e9b293… **恒等**（C2 仅触 executionKernel、kernel 只入
-  // execution subpath bundle，runtime 零触碰按构造恒等——预注册「三值全变」
-  // 偏离一格按实况报）+ execution 291,765B 921d0ab7…（C2 扩形）；
-  // cli.js 锚 18,244,289B 62bbc6cf…（C1 审批通道域入 cli bundle，
-  // +4,853B vs 0.1.128 18,239,436B 45259d7d…）。
-  // downgrade 锚 = 0.1.128 cli.js（真实降级腿实测 @2026-11-26 配对链，
-  // registry 直下三腿逐字节；在案锚逐字）。
+  upgradeVersion: '0.1.130',
+  // 0.1.130 = follow baseline 投影限根修 carrier（候选 A 三件同落 8d32182a +
+  // release 70492cb0；双 org published round-trip 双 MATCH——SRI
+  // docs/sri/v0.1.130.md @AtlasCode 1c590aef）：runtime 101,656B 5710d056…
+  // （A1 新常量 + readonlyRuntime follow limits fork 接线 + A2/A3 常量，
+  // +106B）+ execution 291,871B 0fd96bfa…（web/entry 126 模块超集同源
+  // +106B，预注册「恒等」偏离一格按实况报）；
+  // cli.js 锚 18,244,289B 62bbc6cf… **恒等 0.1.129 连续第二版**（web limits
+  // 域不入 cli bundle——Δ 账预估兑现）⇒ 本轮 upgrade/downgrade 锚同值
+  // （cli.js 字节级恒等的直接后果，非抄写错误）。
+  // downgrade 锚 = 0.1.129 cli.js（同值 62bbc6cf…；0.1.128 腿
+  // 45259d7d… 在案 SRI v0.1.129.md 可回溯）。
   upgradeSha256Prefix: '62bbc6cfce86cc59',
-  downgradeVersion: '0.1.128',
-  downgradeSha256Prefix: '45259d7d0d1e1e2b',
+  downgradeVersion: '0.1.129',
+  downgradeSha256Prefix: '62bbc6cfce86cc59',
 } as const
 
 function isHex(s: string, len: number): boolean {

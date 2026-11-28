@@ -17,7 +17,7 @@
     "build": "bun run --cwd apps/atlasweb build"
   },
   "dependencies": {
-    "@atlaswork/atlascode": "0.1.129"
+    "@atlaswork/atlascode": "0.1.130"
   },
   "devDependencies": {
     "@playwright/test": "1.61.1"

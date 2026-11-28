@@ -2,14 +2,14 @@
   "schemaVersion": 1,
   "kind": "pairing-rollback-attestation",
   "verdict": "closed",
-  "date": "2026-11-27",
-  "reportCommit": "b76abc74a38b37f7161a3545c9ea137f58276e6b",
+  "date": "2026-11-28",
+  "reportCommit": "58edf575b28fc2d8b876efc207f4b18b5ac79636",
   "carrier": {
     "packageName": "@atlaswork/atlascode",
-    "upgradeVersion": "0.1.129",
+    "upgradeVersion": "0.1.130",
     "upgradeSha256Prefix": "62bbc6cfce86cc59",
-    "downgradeVersion": "0.1.128",
-    "downgradeSha256Prefix": "45259d7d0d1e1e2b"
+    "downgradeVersion": "0.1.129",
+    "downgradeSha256Prefix": "62bbc6cfce86cc59"
   },
   "suites": {
     "hostPass": 125,
